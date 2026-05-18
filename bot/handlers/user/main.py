@@ -73,7 +73,7 @@ async def start(message: Message, state: FSMContext):
         # Ignore channel errors (private channel, wrong link, etc.)
         logger.warning(f"Channel subscription check failed for user {user_id}: {e}")
 
-    markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID)
+    markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_USERNAME)
     await message.answer(localize("menu.title"), reply_markup=markup)
     await message.delete()
     await state.clear()
@@ -99,7 +99,7 @@ async def back_to_menu_callback_handler(call: CallbackQuery, state: FSMContext):
 
     channel_username = _parse_channel_username()
 
-    markup = main_menu(role=role_id, channel=channel_username, helper=EnvKeys.HELPER_ID)
+    markup = main_menu(role=role_id, channel=channel_username, helper=EnvKeys.HELPER_USERNAME)
     await call.message.edit_text(localize("menu.title"), reply_markup=markup)
     await state.clear()
 
@@ -156,7 +156,7 @@ async def check_sub_to_channel(call: CallbackQuery, state: FSMContext):
     """
     user_id = call.from_user.id
     channel_username = _parse_channel_username()
-    helper = EnvKeys.HELPER_ID
+    helper = EnvKeys.HELPER_USERNAME
 
     if channel_username:
         chat_id = int(EnvKeys.CHANNEL_ID) if EnvKeys.CHANNEL_ID else f"@{channel_username}"

@@ -54,6 +54,7 @@ class EnvKeys(ABC):
     CHANNEL_URL: Final = _get_optional("CHANNEL_URL", "")
     CHANNEL_ID: Final = _get_optional("CHANNEL_ID", "")
     HELPER_ID: Final = _get_optional("HELPER_ID", "")
+    HELPER_USERNAME: Final = _get_optional("HELPER_USERNAME", "")
     RULES: Final = _get_optional("RULES", "")
 
     # Locale & logs

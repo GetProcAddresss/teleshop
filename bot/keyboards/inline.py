@@ -15,7 +15,7 @@ def main_menu(role: int, channel: str | None = None, helper: str | None = None) 
     kb.button(text=localize("btn.rules"), callback_data="rules")
     kb.button(text=localize("btn.profile"), callback_data="profile")
     if helper:
-        kb.button(text=localize("btn.support"), url=f"tg://user?id={helper}")
+        kb.button(text=localize("btn.support"), url=f"https://t.me/{helper.lstrip('@')}")
     if channel:
         kb.button(text=localize("btn.channel"), url=f"https://t.me/{channel.lstrip('@')}")
     if Permission.has_any_admin_perm(role):
