@@ -121,6 +121,8 @@ async def __on_start_up(dp: Dispatcher, bot: Bot) -> None:
         host=EnvKeys.ADMIN_HOST,
         port=EnvKeys.ADMIN_PORT,
         log_level="warning",
+        proxy_headers=True,
+        forwarded_allow_ips="*",
     )
     admin_server = uvicorn.Server(config)
     asyncio.create_task(admin_server.serve())
