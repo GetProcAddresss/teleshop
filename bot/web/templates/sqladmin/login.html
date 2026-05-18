@@ -1,0 +1,167 @@
+{% extends "sqladmin/base.html" %}
+{% block body %}
+<style>
+  body {
+    background: linear-gradient(135deg, #1a2540 0%, #243050 55%, #1e3a5c 100%);
+    min-height: 100vh;
+  }
+
+  .em-login-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  .em-login-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 380px;
+    overflow: hidden;
+  }
+
+  .em-login-header {
+    background: linear-gradient(135deg, #1a2540 0%, #243050 100%);
+    padding: 2rem 2rem 1.5rem;
+    text-align: center;
+  }
+
+  .em-login-logo {
+    width: 52px;
+    height: 52px;
+    background: rgba(74, 111, 165, 0.9);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.4rem;
+  }
+
+  .em-login-title {
+    color: #e8edf5;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    letter-spacing: 0.2px;
+  }
+
+  .em-login-subtitle {
+    color: #6889b2;
+    font-size: 0.78rem;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .em-login-body {
+    padding: 1.75rem 2rem 2rem;
+  }
+
+  .em-login-body .form-label {
+    color: #4a5568;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    margin-bottom: 5px;
+  }
+
+  .em-login-body .form-control {
+    background: #f7f9fc;
+    border: 1px solid #dce4ee;
+    border-radius: 7px;
+    color: #2d3748;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .em-login-body .form-control:focus {
+    background: #fff;
+    border-color: #4a6fa5;
+    box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.15);
+    outline: none;
+  }
+
+  .em-login-body .form-control.is-invalid {
+    border-color: #b94040;
+    background: #fff8f8;
+  }
+
+  .em-login-body .invalid-feedback {
+    color: #b94040;
+    font-size: 0.78rem;
+    margin-top: 4px;
+  }
+
+  .em-login-btn {
+    background: #4a6fa5;
+    border: none;
+    border-radius: 7px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.6rem 1rem;
+    width: 100%;
+    margin-top: 0.25rem;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    letter-spacing: 0.02em;
+  }
+
+  .em-login-btn:hover {
+    background: #3a5a8a;
+    box-shadow: 0 4px 14px rgba(74, 111, 165, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .em-login-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+
+  .em-mb-3 { margin-bottom: 1rem; }
+</style>
+
+<div class="em-login-wrapper">
+  <div class="em-login-card">
+    <div class="em-login-header">
+      <div class="em-login-logo">
+        <i class="fa-solid fa-store" style="color: #e8edf5;"></i>
+      </div>
+      <p class="em-login-title">{{ admin.title }}</p>
+      <p class="em-login-subtitle">Secure Access</p>
+    </div>
+
+    <form class="em-login-body" action="{{ url_for('admin:login') }}" method="POST" autocomplete="off">
+      <div class="em-mb-3">
+        <label class="form-label">Username</label>
+        {% if error %}
+        <input name="username" type="text" class="form-control is-invalid"
+               placeholder="Enter username" autocomplete="off">
+        <div class="invalid-feedback">{{ error }}</div>
+        {% else %}
+        <input name="username" type="text" class="form-control"
+               placeholder="Enter username" autocomplete="off">
+        {% endif %}
+      </div>
+
+      <div class="em-mb-3">
+        <label class="form-label">Password</label>
+        {% if error %}
+        <input name="password" type="password" class="form-control is-invalid"
+               placeholder="Enter password" autocomplete="off">
+        {% else %}
+        <input name="password" type="password" class="form-control"
+               placeholder="Enter password" autocomplete="off">
+        {% endif %}
+      </div>
+
+      <button type="submit" class="em-login-btn">Sign In</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

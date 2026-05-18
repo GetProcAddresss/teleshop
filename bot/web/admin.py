@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import Any
 
@@ -397,12 +398,14 @@ def create_admin_app() -> Starlette:
     app = Starlette(routes=routes)
     app.add_middleware(SessionMiddleware, secret_key=EnvKeys.SECRET_KEY, max_age=1800)
 
+    _templates_dir = os.path.join(os.path.dirname(__file__), "templates")
     auth_backend = AdminAuth(secret_key=EnvKeys.SECRET_KEY)
     admin = Admin(
         app,
         engine=Database().engine,
         authentication_backend=auth_backend,
-        title="Telegram Shop Admin",
+        title="Evrest Market Admin Panel",
+        templates_dir=_templates_dir,
     )
 
     admin.add_view(UserAdmin)
