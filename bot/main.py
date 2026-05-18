@@ -295,7 +295,7 @@ async def start_bot() -> None:
 
                     body = await request.body()
                     from aiogram.types import Update
-                    update = Update.model_validate_raw(body)
+                    update = Update.model_validate_json(body)
                     await dp.feed_update(bot=bot, update=update)
                     return Response(status_code=200)
 
