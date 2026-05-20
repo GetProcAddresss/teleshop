@@ -59,13 +59,16 @@ def get_redis_storage() -> Optional[RedisStorage]:
             decode_responses=False,
             socket_connect_timeout=5,
             socket_timeout=5,
+            retry_on_timeout=True,
+            retry_on_error=[ConnectionError, TimeoutError],
+            health_check_interval=30,
+            socket_keepalive=True,
         )
 
-        # Use custom storage with TTL
         storage = CustomRedisStorage(
             redis=redis,
-            state_ttl=3600,  # 1 hour
-            data_ttl=3600,  # 1 hour
+            state_ttl=3600,
+            data_ttl=3600,
         )
 
         logging.info(f"Redis storage configured: {EnvKeys.REDIS_HOST}:{EnvKeys.REDIS_PORT}")

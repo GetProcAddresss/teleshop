@@ -233,8 +233,23 @@ async def start_bot() -> None:
         logging.critical("Owner ID not set! Please set OWNER_ID environment variable.")
         sys.exit(1)
 
-    # Retrieve storage (Redis or Memory)
-    storage = get_redis_storage() or MemoryStorage()
+    # Retrieve storage (Redis or Memory) — verify connection with a ping before committing
+    _redis_storage = get_redis_storage()
+    if _redis_storage is not None:
+        try:
+            await _redis_storage.redis.ping()
+            storage = _redis_storage
+            logging.info("Redis connection verified — using RedisStorage")
+        except Exception as e:
+            logging.error(f"Redis ping failed ({e}) — falling back to MemoryStorage")
+            try:
+                await _redis_storage.redis.aclose()
+            except Exception:
+                pass
+            storage = MemoryStorage()
+    else:
+        storage = MemoryStorage()
+
     if isinstance(storage, MemoryStorage):
         logging.warning(
             "Using MemoryStorage - FSM states will be lost on restart! "
