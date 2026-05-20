@@ -147,15 +147,17 @@ class Goods(Database.BASE):
     price = Column(Numeric(12, 2), nullable=False)
     description = Column(Text, nullable=False)
     category_id = Column(Integer, ForeignKey('categories.id', ondelete="CASCADE"), nullable=False, index=True)
+    custom_emoji_id = Column(String(32), nullable=True)
     category = relationship("Categories", back_populates="items", lazy='raise')
     values = relationship("ItemValues", back_populates="item", lazy='raise')
 
-    def __init__(self, name: str, price, description: str, category_id: int, **kw: Any):
+    def __init__(self, name: str, price, description: str, category_id: int, custom_emoji_id: str = None, **kw: Any):
         super().__init__(**kw)
         self.name = name
         self.price = price
         self.description = description
         self.category_id = category_id
+        self.custom_emoji_id = custom_emoji_id
 
 
 class ItemValues(Database.BASE):

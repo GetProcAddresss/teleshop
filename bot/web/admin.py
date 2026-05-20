@@ -207,10 +207,38 @@ class CategoryAdmin(AuditModelView, model=Categories):
     icon = "fa-solid fa-folder"
 
 
+def _format_emoji_id(model, name):
+    val = getattr(model, name, None)
+    if not val:
+        return Markup('<span style="color:#999">—</span>')
+    return Markup(
+        f'<code style="background:#f0f4f8;padding:2px 6px;border-radius:4px;'
+        f'font-size:12px;user-select:all">{val}</code>'
+    )
+
+
 class GoodsAdmin(AuditModelView, model=Goods):
-    column_list = [Goods.id, Goods.name, Goods.price, Goods.description, Goods.category_id]
+    column_list = [Goods.id, Goods.name, Goods.price, Goods.category_id, Goods.custom_emoji_id]
+    column_details_list = [
+        Goods.id, Goods.name, Goods.price, Goods.description,
+        Goods.category_id, Goods.custom_emoji_id,
+    ]
     column_searchable_list = [Goods.name]
     column_sortable_list = [Goods.id, Goods.name, Goods.price]
+    column_formatters = {"custom_emoji_id": _format_emoji_id}
+    column_formatters_detail = {"custom_emoji_id": _format_emoji_id}
+    form_args = {
+        "custom_emoji_id": {
+            "label": "Premium Emoji ID",
+            "description": (
+                "Telegram custom_emoji_id (18–20 digit number). "
+                "How to get one: forward any message with a premium emoji to @getidsbot "
+                "— it will reply with the ID. "
+                "Leave empty for no emoji. "
+                "Example: 5368324170671202286"
+            ),
+        },
+    }
     name = "Product"
     name_plural = "Products"
     icon = "fa-solid fa-box"

@@ -1,3 +1,4 @@
+import html
 from decimal import Decimal
 from functools import partial
 
@@ -93,9 +94,20 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
         reviews_enabled=reviews_enabled,
     )
 
+    custom_emoji_id = item_info_data.get("custom_emoji_id")
+    safe_name = html.escape(item_name)
+    safe_desc = html.escape(item_info_data["description"])
+
+    if custom_emoji_id:
+        title_line = (
+            f'<tg-emoji emoji-id="{custom_emoji_id}">✨</tg-emoji> <b>{safe_name}</b>'
+        )
+    else:
+        title_line = localize("shop.item.title", name=safe_name)
+
     text_lines = [
-        localize("shop.item.title", name=item_name),
-        localize("shop.item.description", description=item_info_data["description"]),
+        title_line,
+        localize("shop.item.description", description=safe_desc),
         price_line,
         quantity_line,
     ]
@@ -106,9 +118,9 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
 
     try:
         if hasattr(target, 'message') and hasattr(target.message, 'edit_text'):
-            await target.message.edit_text(text, reply_markup=markup)
+            await target.message.edit_text(text, reply_markup=markup, parse_mode='HTML')
         else:
-            await target.answer(text, reply_markup=markup)
+            await target.answer(text, reply_markup=markup, parse_mode='HTML')
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
