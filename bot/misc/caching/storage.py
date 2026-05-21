@@ -77,3 +77,30 @@ def get_redis_storage() -> Optional[RedisStorage]:
     except Exception as e:
         logging.error(f"Failed to create Redis storage: {e}")
         return None
+
+
+def get_cache_redis() -> Optional[Redis]:
+    """
+    Create a separate Redis client for the cache manager with short timeouts
+    so cache misses fail fast (1 s) and never block the bot.
+    Returns None if Redis is disabled.
+    """
+    if EnvKeys.REDIS_ENABLED != "1":
+        return None
+
+    try:
+        return Redis(
+            host=EnvKeys.REDIS_HOST,
+            port=EnvKeys.REDIS_PORT,
+            db=EnvKeys.REDIS_DB,
+            password=EnvKeys.REDIS_PASSWORD,
+            decode_responses=False,
+            socket_connect_timeout=2,
+            socket_timeout=1,
+            retry_on_timeout=False,
+            health_check_interval=0,
+            socket_keepalive=True,
+        )
+    except Exception as e:
+        logging.error(f"Failed to create cache Redis client: {e}")
+        return None

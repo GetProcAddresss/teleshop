@@ -19,6 +19,7 @@ from bot.middleware.security import SecurityMiddleware, AuthenticationMiddleware
 from bot.misc.caching import init_cache_manager, get_cache_manager
 from bot.misc.caching import CacheScheduler
 from bot.misc.caching import get_redis_storage
+from bot.misc.caching.storage import get_cache_redis
 from bot.misc.services import RecoveryManager, CleanupManager
 from bot.misc.metrics import init_metrics, get_metrics, AnalyticsMiddleware
 from bot.misc.bot_holder import set_bot
@@ -84,20 +85,29 @@ async def __on_start_up(dp: Dispatcher, bot: Bot) -> None:
 
     logging.info("Security middleware initialized")
 
-    if isinstance(dp.storage, RedisStorage):
-        await init_cache_manager(dp.storage.redis)
+    cache_redis = get_cache_redis()
+    if cache_redis is not None:
+        await init_cache_manager(cache_redis)
 
-        init_stats_cache()
+        redis_live = False
+        try:
+            await cache_redis.ping()
+            redis_live = True
+        except Exception:
+            logging.warning("Redis unreachable at startup — skipping warmup, cache will self-restore when Redis comes back")
 
-        await warm_up_critical_caches()
-
-        logging.info("Cache system initialized and warmed up")
+        if redis_live:
+            init_stats_cache()
+            await warm_up_critical_caches()
+            logging.info("Cache system initialized and warmed up")
+        else:
+            logging.info("Cache manager initialized (pending Redis recovery)")
 
         global cache_scheduler
         cache_scheduler = CacheScheduler()
         await cache_scheduler.start()
     else:
-        logging.warning("Redis not available - caching disabled")
+        logging.info("Redis disabled — running without cache")
 
     # Start the recovery system
     recovery_manager = RecoveryManager(bot)
