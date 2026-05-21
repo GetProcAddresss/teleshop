@@ -155,6 +155,7 @@ async def api_products(request: Request) -> Response:
                     "description": g.description,
                     "price": float(g.price),
                     "custom_emoji_id": g.custom_emoji_id,
+                    "image_url": g.image_url,
                     "in_stock": bool(in_stock),
                     "stock_count": None if (inf_count or 0) > 0 else int(fin_count or 0),
                 })

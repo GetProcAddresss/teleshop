@@ -12,7 +12,11 @@ export function openProductDetail(p) {
       : `<span class="tag tag-out">Out of stock</span>`;
 
   const html = `
-    <div class="detail-thumb">${emojiFor(p.name)}</div>
+    <div class="detail-thumb">${
+      p.image_url
+        ? `<img class="thumb-img" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" />`
+        : emojiFor(p.name)
+    }</div>
     <h2 class="detail-name">${escapeHtml(p.name)}</h2>
     <div class="detail-meta">
       <span class="detail-price">${fmtMoney(p.price)}</span>

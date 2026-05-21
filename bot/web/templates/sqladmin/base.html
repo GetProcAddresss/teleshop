@@ -255,5 +255,106 @@
   .select2-container--default .select2-results__option--highlighted {
     background: var(--em-steel) !important;
   }
+
+  /* ── Image uploader widget ── */
+  .em-upload-wrap {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .em-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--em-steel);
+    color: #fff !important;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border: 0;
+  }
+  .em-upload-btn:hover { background: var(--em-steel-dark); }
+  .em-upload-status { font-size: 0.78rem; color: var(--em-muted); }
+  .em-upload-preview {
+    width: 56px; height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--em-border);
+    background: #f7f9fc;
+  }
+  .em-upload-status.is-error { color: var(--em-danger); }
+  .em-upload-status.is-success { color: var(--em-success); }
 </style>
+{% endblock %}
+
+{% block tail_js %}
+{{ super() }}
+<script>
+(function(){
+  function enhance(input){
+    if (input.dataset.emEnhanced) return;
+    input.dataset.emEnhanced = "1";
+    var wrap = document.createElement("div");
+    wrap.className = "em-upload-wrap";
+    var preview = document.createElement("img");
+    preview.className = "em-upload-preview";
+    preview.alt = "";
+    preview.style.display = input.value ? "block" : "none";
+    if (input.value) preview.src = input.value;
+    var label = document.createElement("label");
+    label.className = "em-upload-btn";
+    label.textContent = "📷  Upload image";
+    var file = document.createElement("input");
+    file.type = "file";
+    file.accept = "image/png,image/jpeg,image/webp,image/gif";
+    file.style.display = "none";
+    label.appendChild(file);
+    var status = document.createElement("span");
+    status.className = "em-upload-status";
+    wrap.appendChild(preview);
+    wrap.appendChild(label);
+    wrap.appendChild(status);
+    input.parentNode.insertBefore(wrap, input.nextSibling);
+    file.addEventListener("change", function(){
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (f.size > 2*1024*1024) {
+        status.textContent = "File too large (max 2 MB)";
+        status.className = "em-upload-status is-error";
+        return;
+      }
+      status.textContent = "Uploading…";
+      status.className = "em-upload-status";
+      var fd = new FormData();
+      fd.append("file", f);
+      fetch("/admin/upload", { method:"POST", body: fd, credentials:"same-origin" })
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+        .then(function(res){
+          if (!res.ok) throw new Error(res.d.error || "Upload failed");
+          input.value = res.d.url;
+          preview.src = res.d.url;
+          preview.style.display = "block";
+          status.textContent = "Uploaded ✓";
+          status.className = "em-upload-status is-success";
+        })
+        .catch(function(err){
+          status.textContent = err.message || "Upload failed";
+          status.className = "em-upload-status is-error";
+        });
+    });
+    input.addEventListener("input", function(){
+      if (input.value) { preview.src = input.value; preview.style.display = "block"; }
+      else preview.style.display = "none";
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function(){
+    document.querySelectorAll('input[name="image_url"]').forEach(enhance);
+  });
+})();
+</script>
 {% endblock %}

@@ -1,5 +1,5 @@
 /* Evrest Market — Service Worker */
-const VERSION = "evrest-v2.0.0";
+const VERSION = "evrest-v2.1.0";
 const STATIC_CACHE = `${VERSION}-static`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 

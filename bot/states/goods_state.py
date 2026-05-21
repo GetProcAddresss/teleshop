@@ -20,6 +20,7 @@ class AddItemFSM(StatesGroup):
     """
     waiting_item_name = State()
     waiting_item_description = State()
+    waiting_item_image = State()
     waiting_item_price = State()
     waiting_category = State()
     waiting_infinity = State()

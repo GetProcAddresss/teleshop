@@ -9,7 +9,20 @@ import { loadProfile, bindProfile } from "./views/profile.js";
 
 const PAGES = ["shop", "cart", "orders", "profile"];
 
+function hideSplash() {
+  const sp = document.getElementById("splash");
+  if (!sp) return;
+  // Minimum visible time so users see the brand briefly
+  const elapsed = Date.now() - (window.__splashStart || Date.now());
+  const wait = Math.max(0, 650 - elapsed);
+  setTimeout(() => {
+    sp.classList.add("is-hidden");
+    setTimeout(() => sp.remove(), 600);
+  }, wait);
+}
+
 function init() {
+  window.__splashStart = Date.now();
   initTg();
   applyTheme();
   watchSystem();
@@ -24,7 +37,10 @@ function init() {
 
   document.addEventListener("cart:change", updateCartBadge);
 
-  initShop();
+  initShop().finally(hideSplash);
+
+  // Safety: always hide splash within 3.5s even if init stalls
+  setTimeout(hideSplash, 3500);
 
   // Hash routing (optional, supports deep links)
   window.addEventListener("hashchange", routeFromHash);

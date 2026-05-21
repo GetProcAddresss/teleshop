@@ -1,5 +1,9 @@
 from urllib.parse import urlparse
 
+import os
+import secrets
+import time as _time
+
 from aiogram import Router, F
 from aiogram.exceptions import TelegramForbiddenError, TelegramNotFound, TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
@@ -50,12 +54,58 @@ async def check_item_name_for_add(message: Message, state):
 @router.message(AddItemFSM.waiting_item_description, F.text)
 async def add_item_description(message: Message, state):
     """
-    Save description and proceed to price input.
+    Save description and proceed to image upload.
     """
     await state.update_data(item_description=(message.text or "").strip())
-    await message.answer(localize('admin.goods.add.prompt.price', currency=EnvKeys.PAY_CURRENCY),
-                         reply_markup=back('goods_management'))
+    await message.answer(localize('admin.goods.add.prompt.image'), reply_markup=back('goods_management'))
+    await state.set_state(AddItemFSM.waiting_item_image)
+
+
+_UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web", "uploads")
+_MAX_PHOTO_BYTES = 3 * 1024 * 1024  # 3 MB
+
+
+async def _ask_price(message: Message, state):
+    await message.answer(
+        localize('admin.goods.add.prompt.price', currency=EnvKeys.PAY_CURRENCY),
+        reply_markup=back('goods_management'),
+    )
     await state.set_state(AddItemFSM.waiting_item_price)
+
+
+@router.message(AddItemFSM.waiting_item_image, F.photo)
+async def add_item_image_photo(message: Message, state):
+    """Save uploaded photo to uploads dir and proceed to price."""
+    try:
+        photo = message.photo[-1]
+        file = await message.bot.get_file(photo.file_id)
+        os.makedirs(_UPLOADS_DIR, exist_ok=True)
+        ext = os.path.splitext(file.file_path or "")[1].lower() or ".jpg"
+        if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+            ext = ".jpg"
+        fname = f"prod_{int(_time.time())}_{secrets.token_hex(6)}{ext}"
+        fpath = os.path.join(_UPLOADS_DIR, fname)
+        await message.bot.download_file(file.file_path, destination=fpath)
+        if os.path.getsize(fpath) > _MAX_PHOTO_BYTES:
+            os.remove(fpath)
+            await message.answer(localize('admin.goods.add.image.invalid'))
+            return
+        await state.update_data(item_image_url=f"/uploads/{fname}")
+        await message.answer(localize('admin.goods.add.image.saved'))
+        await _ask_price(message, state)
+    except Exception:
+        await message.answer(localize('admin.goods.add.image.invalid'))
+
+
+@router.message(AddItemFSM.waiting_item_image, F.text)
+async def add_item_image_skip(message: Message, state):
+    """Allow /skip or any text to bypass image step."""
+    txt = (message.text or "").strip().lower()
+    if txt in ("/skip", "skip", "пропустить"):
+        await state.update_data(item_image_url=None)
+        await _ask_price(message, state)
+    else:
+        await message.answer(localize('admin.goods.add.prompt.image'))
 
 
 @router.message(AddItemFSM.waiting_item_price, F.text)
@@ -150,6 +200,7 @@ async def finish_adding_items_callback_handler(call: CallbackQuery, state):
     item_description = data.get('item_description')
     item_price = data.get('item_price')
     category_name = data.get('item_category')
+    image_url = data.get('item_image_url')
     raw_values: list[str] = data.get("item_values", []) or []
 
     added = 0
@@ -159,7 +210,7 @@ async def finish_adding_items_callback_handler(call: CallbackQuery, state):
     seen_in_batch: set[str] = set()
 
     # Create position
-    await create_item(item_name, item_description, item_price, category_name)
+    await create_item(item_name, item_description, item_price, category_name, image_url=image_url)
 
     for v in raw_values:
         v_norm = (v or "").strip()
@@ -229,6 +280,7 @@ async def finish_adding_item_callback_handler(message: Message, state):
     item_description = data.get('item_description')
     item_price = data.get('item_price')
     category_name = data.get('item_category')
+    image_url = data.get('item_image_url')
 
     single_value = (message.text or "").strip()
     if not single_value:
@@ -236,7 +288,7 @@ async def finish_adding_item_callback_handler(message: Message, state):
         return
 
     # 1) Create position
-    await create_item(item_name, item_description, item_price, category_name)
+    await create_item(item_name, item_description, item_price, category_name, image_url=image_url)
     # 2) Add 1 “infinite” value
     await add_values_to_item(item_name, single_value, True)
 

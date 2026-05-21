@@ -26,7 +26,8 @@ async def create_user(telegram_id: int, registration_date: datetime, referral_id
         )
 
 
-async def create_item(item_name: str, item_description: str, item_price: int, category_name: str) -> None:
+async def create_item(item_name: str, item_description: str, item_price: int, category_name: str,
+                      image_url: str | None = None) -> None:
     """Insert item (goods); commit. Resolves category_name to category_id."""
     async with Database().session() as s:
         result = await s.execute(select(exists().where(Goods.name == item_name)))
@@ -41,6 +42,7 @@ async def create_item(item_name: str, item_description: str, item_price: int, ca
                 description=item_description,
                 price=item_price,
                 category_id=cat,
+                image_url=image_url,
             )
         )
 

@@ -147,6 +147,7 @@ class Goods(Database.BASE):
     description = Column(Text, nullable=False)
     category_id = Column(Integer, ForeignKey('categories.id', ondelete="CASCADE"), nullable=False, index=True)
     custom_emoji_id = Column(String(32), nullable=True)
+    image_url = Column(String(500), nullable=True)
     category = relationship("Categories", back_populates="items", lazy='raise')
     values = relationship("ItemValues", back_populates="item", lazy='raise')
 

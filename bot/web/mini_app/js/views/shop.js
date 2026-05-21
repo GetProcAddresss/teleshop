@@ -98,7 +98,11 @@ function productCard(p) {
   const out = !p.in_stock;
   return `
     <article class="product-card${out ? " is-out" : ""}" data-pid="${p.id}" tabindex="0" role="button" aria-label="${escapeHtml(p.name)}">
-      <div class="card-thumb">${emojiFor(p.name)}</div>
+      <div class="card-thumb">${
+        p.image_url
+          ? `<img class="thumb-img" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${emojiFor(p.name)}'}))"/>`
+          : emojiFor(p.name)
+      }</div>
       <div class="card-body">
         <div class="card-name">${escapeHtml(p.name)}</div>
         <div class="card-desc">${escapeHtml(p.description || "")}</div>

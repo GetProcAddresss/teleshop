@@ -219,20 +219,46 @@ def _format_emoji_id(model, name):
     )
 
 
+def _format_image_url(model, name):
+    val = getattr(model, name, None)
+    if not val:
+        return Markup('<span style="color:#999">—</span>')
+    return Markup(
+        f'<a href="{val}" target="_blank" rel="noopener">'
+        f'<img src="{val}" style="height:42px;width:42px;object-fit:cover;'
+        f'border-radius:6px;border:1px solid #2a3147;background:#0f1422" '
+        f'onerror="this.style.display=\'none\'"/></a>'
+    )
+
+
 class GoodsAdmin(AuditModelView, model=Goods):
-    column_list = [Goods.id, Goods.name, Goods.price, Goods.category_id, Goods.custom_emoji_id]
+    column_list = [Goods.id, Goods.image_url, Goods.name, Goods.price, Goods.category_id, Goods.custom_emoji_id]
     column_details_list = [
-        Goods.id, Goods.name, Goods.price, Goods.description,
+        Goods.id, Goods.image_url, Goods.name, Goods.price, Goods.description,
         Goods.category_id, Goods.custom_emoji_id,
     ]
     column_searchable_list = [Goods.name]
     column_sortable_list = [Goods.id, Goods.name, Goods.price]
-    column_formatters = {"custom_emoji_id": _format_emoji_id}
-    column_formatters_detail = {"custom_emoji_id": _format_emoji_id}
-    form_columns = ["name", "price", "description", "category", "custom_emoji_id"]
+    column_formatters = {
+        "custom_emoji_id": _format_emoji_id,
+        "image_url": _format_image_url,
+    }
+    column_formatters_detail = {
+        "custom_emoji_id": _format_emoji_id,
+        "image_url": _format_image_url,
+    }
+    column_labels = {"image_url": "Image"}
+    form_columns = ["name", "price", "description", "category", "image_url", "custom_emoji_id"]
     form_args = {
         "category": {
             "label": "Category",
+        },
+        "image_url": {
+            "label": "Product Image URL",
+            "description": (
+                "Paste an image URL, or upload via /admin/upload (returns a /uploads/... path). "
+                "Recommended 600×600 px, JPG/PNG/WEBP, &lt; 1.5 MB. Leave empty to use emoji fallback."
+            ),
         },
         "custom_emoji_id": {
             "label": "Premium Emoji ID",
@@ -376,6 +402,40 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
 
 
 # Health & Metrics Endpoints
+_UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+_ALLOWED_IMG_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+_ALLOWED_IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+_MAX_IMG_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+async def upload_product_image(request: Request) -> JSONResponse:
+    """Admin-only image upload. Returns {url: '/uploads/<file>'}."""
+    if not request.session.get("authenticated"):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    try:
+        form = await request.form()
+        f = form.get("file")
+        if f is None or not hasattr(f, "filename"):
+            return JSONResponse({"error": "No file provided"}, status_code=400)
+        ext = os.path.splitext(f.filename or "")[1].lower()
+        if ext not in _ALLOWED_IMG_EXT:
+            return JSONResponse({"error": "Unsupported file type"}, status_code=400)
+        if getattr(f, "content_type", None) and f.content_type not in _ALLOWED_IMG_TYPES:
+            return JSONResponse({"error": "Unsupported content type"}, status_code=400)
+        raw = await f.read()
+        if len(raw) > _MAX_IMG_BYTES:
+            return JSONResponse({"error": "File too large (max 2 MB)"}, status_code=413)
+        os.makedirs(_UPLOADS_DIR, exist_ok=True)
+        import secrets
+        fname = f"prod_{int(time.time())}_{secrets.token_hex(6)}{ext}"
+        with open(os.path.join(_UPLOADS_DIR, fname), "wb") as out:
+            out.write(raw)
+        return JSONResponse({"url": f"/uploads/{fname}", "size": len(raw)})
+    except Exception as e:
+        logger.error(f"upload_product_image error: {e}")
+        return JSONResponse({"error": "Upload failed"}, status_code=500)
+
+
 async def health_check(request: Request) -> JSONResponse:
     health_status = {
         "status": "healthy",
@@ -432,11 +492,15 @@ def create_admin_app() -> Starlette:
 
     _mini_app_dir = os.path.join(os.path.dirname(__file__), "mini_app")
 
+    os.makedirs(_UPLOADS_DIR, exist_ok=True)
+
     routes = [
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
+        Route("/admin/upload", upload_product_image, methods=["POST"]),
     ] + export_routes + get_mini_app_routes() + [
+        Mount("/uploads", app=StaticFiles(directory=_UPLOADS_DIR)),
         Mount("/mini", app=StaticFiles(directory=_mini_app_dir, html=True)),
     ]
 
