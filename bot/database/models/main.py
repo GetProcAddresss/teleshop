@@ -167,11 +167,8 @@ class ItemValues(Database.BASE):
         Index('ix_item_values_item_inf', 'item_id', 'is_infinity'),
     )
 
-    def __init__(self, item_id: int, value: str, is_infinity: bool, **kw: Any):
-        super().__init__(**kw)
-        self.item_id = item_id
-        self.value = value
-        self.is_infinity = is_infinity
+    def __str__(self):
+        return self.value or f"Stock #{self.id}"
 
 
 class BoughtGoods(Database.BASE):
