@@ -297,8 +297,8 @@ async def api_buy(request: Request) -> JSONResponse:
 
     try:
         telegram_id = int(user.get("id", 0))
-        from bot.database.methods.transactions import buy_item
-        success, reason, data = await buy_item(telegram_id, item_name)
+        from bot.database.methods.transactions import buy_item_transaction
+        success, reason, data = await buy_item_transaction(telegram_id, item_name)
         if success:
             return JSONResponse({"ok": True, "data": data}, headers=_JSON_HEADERS_NONE)
         error_map = {
