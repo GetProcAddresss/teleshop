@@ -9,6 +9,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Route, Mount
 from starlette.staticfiles import StaticFiles
 from sqlalchemy import text
@@ -547,6 +548,74 @@ async def metrics_json(request: Request) -> JSONResponse:
     return JSONResponse(metrics.get_metrics_summary(), status_code=200)
 
 
+# ── Security headers middleware ──
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Adds defense-in-depth security headers. CSP is path-aware:
+      - /mini/*  : strict mini-app CSP (allows Telegram WebApp JS)
+      - default  : relaxed CSP suited for SQLAdmin (Tabler CDN, inline scripts)
+    """
+
+    _MINI_CSP = (
+        "default-src 'self'; "
+        "script-src 'self' https://telegram.org 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' https://telegram.org; "
+        "frame-ancestors https://web.telegram.org https://*.telegram.org 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "object-src 'none'"
+    )
+
+    _ADMIN_CSP = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+        "font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
+        "img-src 'self' data: blob: https:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "object-src 'none'"
+    )
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+
+        # HSTS — only meaningful over HTTPS; Railway terminates TLS and forwards X-Forwarded-Proto.
+        xfp = request.headers.get("x-forwarded-proto", request.url.scheme)
+        if xfp == "https":
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains; preload",
+            )
+
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()",
+        )
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+
+        # X-Frame-Options + CSP frame-ancestors
+        if path.startswith("/mini") or path.startswith("/uploads"):
+            # Mini app: allow framing by Telegram clients. Do not send X-Frame-Options
+            # (it would conflict with CSP frame-ancestors and is the legacy header).
+            response.headers.setdefault("Content-Security-Policy", self._MINI_CSP)
+        else:
+            response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+            response.headers.setdefault("Content-Security-Policy", self._ADMIN_CSP)
+
+        return response
+
+
 # App Factory
 def create_admin_app() -> Starlette:
 
@@ -571,6 +640,7 @@ def create_admin_app() -> Starlette:
     ]
 
     app = Starlette(routes=routes)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(SessionMiddleware, secret_key=EnvKeys.SECRET_KEY, max_age=1800)
 
     _templates_dir = os.path.join(os.path.dirname(__file__), "templates")
