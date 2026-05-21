@@ -56,15 +56,17 @@ function setDark(on) {
 }
 
 /* ─────────────────── API helpers ─────────────────── */
-function getHeaders() {
-  const h = { "Content-Type": "application/json" };
+function getHeaders(isPost = false) {
+  const h = {};
+  if (isPost) h["Content-Type"] = "application/json";
   if (tg?.initData) h["X-Telegram-Init-Data"] = tg.initData;
   return h;
 }
 
 async function apiFetch(path, opts = {}) {
+  const isPost = opts.method === "POST";
   const res = await fetch(BASE + path, {
-    headers: getHeaders(),
+    headers: getHeaders(isPost),
     ...opts,
   });
   return res;
