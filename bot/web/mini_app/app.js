@@ -176,26 +176,39 @@ function makeChip(label, value) {
 /* ─────────────────── Products ─────────────────── */
 async function loadProducts() {
   const grid = document.getElementById("productGrid");
-  grid.innerHTML = `<div class="empty-state" id="gridLoader"><div class="spinner"></div><p>Loading products…</p></div>`;
+  grid.innerHTML = `<div class="empty-state" id="gridLoader"><div class="spinner"></div><p>Loading…</p></div>`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const params = new URLSearchParams();
     if (state.activeCategory) params.set("category", state.activeCategory);
     if (state.searchQuery) params.set("search", state.searchQuery);
 
-    const res = await apiFetch(`/mini/api/products?${params}`);
+    const res = await fetch(`/mini/api/products?${params}`, {
+      headers: getHeaders(false),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
     if (!res.ok) throw new Error("API error");
     state.products = await res.json();
     renderProducts();
   } catch (e) {
-    grid.innerHTML = `<div class="no-results">Failed to load products. Pull to refresh.</div>`;
+    clearTimeout(timeout);
+    grid.innerHTML = `<div class="no-results"><div style="font-size:2rem;margin-bottom:8px">🛍️</div><p>No products available right now.</p><button class="btn-secondary" style="margin-top:12px" onclick="loadProducts()">Retry</button></div>`;
   }
 }
 
 function renderProducts() {
   const grid = document.getElementById("productGrid");
   if (!state.products.length) {
-    grid.innerHTML = `<div class="no-results">No products found${state.searchQuery ? ` for &ldquo;${esc(state.searchQuery)}&rdquo;` : ""}.</div>`;
+    const msg = state.searchQuery
+      ? `No products found for &ldquo;${esc(state.searchQuery)}&rdquo;.`
+      : state.activeCategory
+        ? `No products in <strong>${esc(state.activeCategory)}</strong> right now.`
+        : "No products or stock available right now.";
+    grid.innerHTML = `<div class="no-results"><div style="font-size:2rem;margin-bottom:8px">🛍️</div><p>${msg}</p></div>`;
     return;
   }
 
