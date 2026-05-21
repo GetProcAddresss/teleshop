@@ -1,0 +1,15 @@
+{
+  "name": "Evrest Market",
+  "short_name": "Evrest",
+  "description": "Digital goods marketplace",
+  "start_url": "/mini/",
+  "scope": "/mini/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F1ECE2",
+  "theme_color": "#F1ECE2",
+  "icons": [
+    { "src": "/mini/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/mini/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+  ]
+}
