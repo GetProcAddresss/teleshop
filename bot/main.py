@@ -21,6 +21,7 @@ from bot.misc.caching import CacheScheduler
 from bot.misc.caching import get_redis_storage
 from bot.misc.services import RecoveryManager, CleanupManager
 from bot.misc.metrics import init_metrics, get_metrics, AnalyticsMiddleware
+from bot.misc.bot_holder import set_bot
 from bot.database.main import Database as _Database
 
 # Global variables for components
@@ -270,6 +271,7 @@ async def start_bot() -> None:
     ) as bot:
         # Getting information about the bot
         bot_info = await bot.get_me()
+        set_bot(bot)
         logging.info(f"Starting bot: @{bot_info.username} (ID: {bot_info.id})")
 
         # Initialization at startup

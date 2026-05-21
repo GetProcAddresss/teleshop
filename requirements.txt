@@ -15,6 +15,7 @@ sqladmin>=0.20
 starlette
 uvicorn
 itsdangerous
+aiofiles>=23.0
 
 # Validation & Security
 pydantic~=2.5.0

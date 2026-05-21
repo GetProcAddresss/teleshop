@@ -9,7 +9,8 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.routing import Route
+from starlette.routing import Route, Mount
+from starlette.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from markupsafe import Markup
@@ -416,12 +417,17 @@ async def metrics_json(request: Request) -> JSONResponse:
 def create_admin_app() -> Starlette:
 
     from bot.web.export import export_routes
+    from bot.web.mini_app_api import get_mini_app_routes
+
+    _mini_app_dir = os.path.join(os.path.dirname(__file__), "mini_app")
 
     routes = [
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes
+    ] + export_routes + get_mini_app_routes() + [
+        Mount("/mini", app=StaticFiles(directory=_mini_app_dir, html=True)),
+    ]
 
     app = Starlette(routes=routes)
     app.add_middleware(SessionMiddleware, secret_key=EnvKeys.SECRET_KEY, max_age=1800)

@@ -75,7 +75,8 @@ class EnvKeys(ABC):
 
     # Webhook
     WEBHOOK_ENABLED: Final = _get_optional("WEBHOOK_ENABLED", "0")
-    WEBHOOK_URL: Final = _get_optional("WEBHOOK_URL", "")
+    _railway_domain: Final = _get_optional("RAILWAY_PUBLIC_DOMAIN", "")
+    WEBHOOK_URL: Final = _get_optional("WEBHOOK_URL", f"https://{_railway_domain}" if _get_optional("RAILWAY_PUBLIC_DOMAIN", "") else "")
     WEBHOOK_PATH: Final = _get_optional("WEBHOOK_PATH", "/webhook")
     WEBHOOK_SECRET: Final = _get_optional("WEBHOOK_SECRET", "")
 
