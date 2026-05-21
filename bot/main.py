@@ -84,20 +84,15 @@ async def __on_start_up(dp: Dispatcher, bot: Bot) -> None:
 
     logging.info("Security middleware initialized")
 
-    storage = get_redis_storage()
-    if isinstance(storage, RedisStorage):
-        # Use the same Redis for caching
-        await init_cache_manager(storage.redis)
+    if isinstance(dp.storage, RedisStorage):
+        await init_cache_manager(dp.storage.redis)
 
-        # Initialize the statistics cache
         init_stats_cache()
 
-        # Warm up critical caches at startup
         await warm_up_critical_caches()
 
         logging.info("Cache system initialized and warmed up")
 
-        # Start cache scheduler only when Redis is available
         global cache_scheduler
         cache_scheduler = CacheScheduler()
         await cache_scheduler.start()
