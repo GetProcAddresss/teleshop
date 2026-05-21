@@ -195,7 +195,7 @@ async function loadProducts() {
 function renderProducts() {
   const grid = document.getElementById("productGrid");
   if (!state.products.length) {
-    grid.innerHTML = `<div class="no-results">No products found${state.searchQuery ? " for "" + state.searchQuery + """ : ""}.</div>`;
+    grid.innerHTML = `<div class="no-results">No products found${state.searchQuery ? ` for &ldquo;${esc(state.searchQuery)}&rdquo;` : ""}.</div>`;
     return;
   }
 
