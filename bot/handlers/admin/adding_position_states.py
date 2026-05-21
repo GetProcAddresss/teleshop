@@ -61,7 +61,30 @@ async def add_item_description(message: Message, state):
     await state.set_state(AddItemFSM.waiting_item_image)
 
 
-_UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web", "uploads")
+def _resolve_uploads_dir() -> str:
+    env_dir = os.environ.get("UPLOADS_DIR")
+    candidates = [
+        env_dir,
+        "/app/data/uploads",
+        "/tmp/evrest_uploads",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web", "uploads"),
+    ]
+    for c in candidates:
+        if not c:
+            continue
+        try:
+            os.makedirs(c, exist_ok=True)
+            test = os.path.join(c, ".write_test")
+            with open(test, "w") as f:
+                f.write("ok")
+            os.remove(test)
+            return c
+        except Exception:
+            continue
+    return "/tmp"
+
+
+_UPLOADS_DIR = _resolve_uploads_dir()
 _MAX_PHOTO_BYTES = 3 * 1024 * 1024  # 3 MB
 
 

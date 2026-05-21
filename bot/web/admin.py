@@ -402,7 +402,30 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
 
 
 # Health & Metrics Endpoints
-_UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+def _resolve_uploads_dir() -> str:
+    env_dir = os.environ.get("UPLOADS_DIR")
+    candidates = [
+        env_dir,
+        "/app/data/uploads",
+        "/tmp/evrest_uploads",
+        os.path.join(os.path.dirname(__file__), "uploads"),
+    ]
+    for c in candidates:
+        if not c:
+            continue
+        try:
+            os.makedirs(c, exist_ok=True)
+            test = os.path.join(c, ".write_test")
+            with open(test, "w") as f:
+                f.write("ok")
+            os.remove(test)
+            return c
+        except Exception:
+            continue
+    return "/tmp"
+
+
+_UPLOADS_DIR = _resolve_uploads_dir()
 _ALLOWED_IMG_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 _ALLOWED_IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _MAX_IMG_BYTES = 2 * 1024 * 1024  # 2 MB
@@ -492,7 +515,10 @@ def create_admin_app() -> Starlette:
 
     _mini_app_dir = os.path.join(os.path.dirname(__file__), "mini_app")
 
-    os.makedirs(_UPLOADS_DIR, exist_ok=True)
+    try:
+        os.makedirs(_UPLOADS_DIR, exist_ok=True)
+    except Exception as e:
+        logger.warning(f"Could not create uploads dir {_UPLOADS_DIR}: {e}")
 
     routes = [
         Route("/health", health_check),
