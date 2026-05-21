@@ -431,6 +431,27 @@ _ALLOWED_IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _MAX_IMG_BYTES = 2 * 1024 * 1024  # 2 MB
 
 
+_IMG_MAGIC = {
+    ".jpg":  [b"\xff\xd8\xff"],
+    ".jpeg": [b"\xff\xd8\xff"],
+    ".png":  [b"\x89PNG\r\n\x1a\n"],
+    ".gif":  [b"GIF87a", b"GIF89a"],
+    ".webp": [b"RIFF"],  # second check below for "WEBP" at offset 8
+}
+
+
+def _verify_image_bytes(raw: bytes, ext: str) -> bool:
+    sigs = _IMG_MAGIC.get(ext)
+    if not sigs:
+        return False
+    if not any(raw.startswith(sig) for sig in sigs):
+        return False
+    if ext == ".webp":
+        if len(raw) < 12 or raw[8:12] != b"WEBP":
+            return False
+    return True
+
+
 async def upload_product_image(request: Request) -> JSONResponse:
     """Admin-only image upload. Returns {url: '/uploads/<file>'}."""
     if not request.session.get("authenticated"):
@@ -446,14 +467,33 @@ async def upload_product_image(request: Request) -> JSONResponse:
         if getattr(f, "content_type", None) and f.content_type not in _ALLOWED_IMG_TYPES:
             return JSONResponse({"error": "Unsupported content type"}, status_code=400)
         raw = await f.read()
+        if len(raw) == 0:
+            return JSONResponse({"error": "Empty file"}, status_code=400)
         if len(raw) > _MAX_IMG_BYTES:
             return JSONResponse({"error": "File too large (max 2 MB)"}, status_code=413)
-        os.makedirs(_UPLOADS_DIR, exist_ok=True)
+        if not _verify_image_bytes(raw, ext):
+            return JSONResponse({"error": "Invalid image content"}, status_code=400)
+        try:
+            os.makedirs(_UPLOADS_DIR, exist_ok=True)
+        except Exception:
+            return JSONResponse({"error": "Storage unavailable"}, status_code=503)
         import secrets
-        fname = f"prod_{int(time.time())}_{secrets.token_hex(6)}{ext}"
-        with open(os.path.join(_UPLOADS_DIR, fname), "wb") as out:
+        # Random, non-guessable filename — admin sees only the preview, not the path.
+        fname = f"prod_{secrets.token_urlsafe(18).replace('-','').replace('_','')[:24]}{ext}"
+        dest = os.path.realpath(os.path.join(_UPLOADS_DIR, fname))
+        # Defense-in-depth: ensure resolved path is inside uploads dir
+        if not dest.startswith(os.path.realpath(_UPLOADS_DIR) + os.sep):
+            return JSONResponse({"error": "Invalid path"}, status_code=400)
+        with open(dest, "wb") as out:
             out.write(raw)
-        return JSONResponse({"url": f"/uploads/{fname}", "size": len(raw)})
+        try:
+            os.chmod(dest, 0o644)
+        except Exception:
+            pass
+        return JSONResponse(
+            {"url": f"/uploads/{fname}", "size": len(raw)},
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
     except Exception as e:
         logger.error(f"upload_product_image error: {e}")
         return JSONResponse({"error": "Upload failed"}, status_code=500)

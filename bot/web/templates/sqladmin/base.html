@@ -299,32 +299,85 @@
   function enhance(input){
     if (input.dataset.emEnhanced) return;
     input.dataset.emEnhanced = "1";
+
+    // Hide the raw URL input so admins don't see (or edit) internal storage paths.
+    input.type = "hidden";
+
+    // Relabel the field group visually
+    try {
+      var formGroup = input.closest(".mb-3, .form-group, .row");
+      if (formGroup) {
+        var lbl = formGroup.querySelector("label");
+        if (lbl) lbl.textContent = "Product Image";
+        var help = formGroup.querySelector("small, .form-text");
+        if (help) help.textContent = "Upload a product image (JPG/PNG/WEBP, max 2 MB, ~600×600 recommended).";
+      }
+    } catch(e){}
+
     var wrap = document.createElement("div");
     wrap.className = "em-upload-wrap";
+
     var preview = document.createElement("img");
     preview.className = "em-upload-preview";
     preview.alt = "";
     preview.style.display = input.value ? "block" : "none";
     if (input.value) preview.src = input.value;
+
     var label = document.createElement("label");
     label.className = "em-upload-btn";
-    label.textContent = "📷  Upload image";
+    label.innerHTML = '<span style="font-size:14px;">📷</span> Upload image';
+
     var file = document.createElement("input");
     file.type = "file";
     file.accept = "image/png,image/jpeg,image/webp,image/gif";
     file.style.display = "none";
     label.appendChild(file);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "em-upload-btn";
+    removeBtn.style.background = "#b94a48";
+    removeBtn.textContent = "Remove";
+    removeBtn.style.display = input.value ? "inline-flex" : "none";
+
     var status = document.createElement("span");
     status.className = "em-upload-status";
+
     wrap.appendChild(preview);
     wrap.appendChild(label);
+    wrap.appendChild(removeBtn);
     wrap.appendChild(status);
     input.parentNode.insertBefore(wrap, input.nextSibling);
+
+    function setValue(url) {
+      input.value = url || "";
+      if (url) {
+        preview.src = url;
+        preview.style.display = "block";
+        removeBtn.style.display = "inline-flex";
+      } else {
+        preview.removeAttribute("src");
+        preview.style.display = "none";
+        removeBtn.style.display = "none";
+      }
+    }
+
+    removeBtn.addEventListener("click", function(){
+      setValue("");
+      status.textContent = "Image removed";
+      status.className = "em-upload-status";
+    });
+
     file.addEventListener("change", function(){
       var f = file.files && file.files[0];
       if (!f) return;
       if (f.size > 2*1024*1024) {
         status.textContent = "File too large (max 2 MB)";
+        status.className = "em-upload-status is-error";
+        return;
+      }
+      if (!/^image\/(png|jpe?g|webp|gif)$/.test(f.type)) {
+        status.textContent = "Unsupported file type";
         status.className = "em-upload-status is-error";
         return;
       }
@@ -336,9 +389,11 @@
         .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
         .then(function(res){
           if (!res.ok) throw new Error(res.d.error || "Upload failed");
-          input.value = res.d.url;
-          preview.src = res.d.url;
-          preview.style.display = "block";
+          // Only accept relative /uploads/ paths returned by our own endpoint
+          if (typeof res.d.url !== "string" || !/^\/uploads\/[A-Za-z0-9_.-]+$/.test(res.d.url)) {
+            throw new Error("Invalid response");
+          }
+          setValue(res.d.url);
           status.textContent = "Uploaded ✓";
           status.className = "em-upload-status is-success";
         })
@@ -346,10 +401,7 @@
           status.textContent = err.message || "Upload failed";
           status.className = "em-upload-status is-error";
         });
-    });
-    input.addEventListener("input", function(){
-      if (input.value) { preview.src = input.value; preview.style.display = "block"; }
-      else preview.style.display = "none";
+      file.value = "";
     });
   }
   document.addEventListener("DOMContentLoaded", function(){
