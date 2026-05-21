@@ -135,6 +135,9 @@ class Categories(Database.BASE):
     name = Column(String(100), unique=True, nullable=False)
     items = relationship("Goods", back_populates="category", lazy='raise')
 
+    def __str__(self):
+        return self.name or f"Category #{self.id}"
+
 
 class Goods(Database.BASE):
     __tablename__ = 'goods'
@@ -146,6 +149,9 @@ class Goods(Database.BASE):
     custom_emoji_id = Column(String(32), nullable=True)
     category = relationship("Categories", back_populates="items", lazy='raise')
     values = relationship("ItemValues", back_populates="item", lazy='raise')
+
+    def __str__(self):
+        return self.name or f"Product #{self.id}"
 
 
 class ItemValues(Database.BASE):

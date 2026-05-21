@@ -203,6 +203,7 @@ class RoleAdmin(AuditModelView, model=Role):
 class CategoryAdmin(AuditModelView, model=Categories):
     column_list = [Categories.name]
     column_searchable_list = [Categories.name]
+    form_columns = ["name"]
     name = "Category"
     name_plural = "Categories"
     icon = "fa-solid fa-folder"
@@ -228,7 +229,11 @@ class GoodsAdmin(AuditModelView, model=Goods):
     column_sortable_list = [Goods.id, Goods.name, Goods.price]
     column_formatters = {"custom_emoji_id": _format_emoji_id}
     column_formatters_detail = {"custom_emoji_id": _format_emoji_id}
+    form_columns = ["name", "price", "description", "category", "custom_emoji_id"]
     form_args = {
+        "category": {
+            "label": "Category",
+        },
         "custom_emoji_id": {
             "label": "Premium Emoji ID",
             "description": (
@@ -249,6 +254,12 @@ class ItemValuesAdmin(AuditModelView, model=ItemValues):
     column_list = [ItemValues.id, ItemValues.item_id, ItemValues.value, ItemValues.is_infinity]
     column_searchable_list = [ItemValues.value]
     column_sortable_list = [ItemValues.id, ItemValues.item_id]
+    form_columns = ["item", "value", "is_infinity"]
+    form_args = {
+        "item": {"label": "Product"},
+        "value": {"label": "Content / Code (leave empty if Infinite)"},
+        "is_infinity": {"label": "Unlimited Stock"},
+    }
     name = "Stock Item"
     name_plural = "Stock Items"
     icon = "fa-solid fa-warehouse"
