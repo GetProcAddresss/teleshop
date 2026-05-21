@@ -53,8 +53,6 @@ function loadTheme() {
 function setDark(on) {
   document.documentElement.setAttribute("data-theme", on ? "dark" : "light");
   localStorage.setItem("em_dark", on ? "1" : "0");
-  const logo = document.getElementById("brandLogo");
-  if (logo) logo.src = on ? "/mini/logo-dark.png" : "/mini/logo-light.png";
 }
 
 /* ─────────────────── API helpers ─────────────────── */
