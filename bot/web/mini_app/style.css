@@ -1136,14 +1136,36 @@ a { color: inherit; text-decoration: none; }
 
 /* ═══ 21. PRODUCT IMAGES ═══ */
 .card-thumb { overflow: hidden; }
-.card-thumb img.thumb-img,
-.detail-thumb img.thumb-img {
+/* When an actual image is present, neutralize the mint gradient so transparent
+   logos don't appear washed-out. object-fit: contain keeps the whole product
+   visible (logos/icons) with comfortable padding. */
+.card-thumb:has(img.thumb-img) {
+  background: #ffffff;
+  padding: 10px;
+}
+[data-theme="dark"] .card-thumb:has(img.thumb-img) {
+  background: #1a2030;
+}
+.card-thumb img.thumb-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 .detail-thumb { overflow: hidden; }
+.detail-thumb:has(img.thumb-img) {
+  background: #ffffff;
+  padding: 14px;
+}
+[data-theme="dark"] .detail-thumb:has(img.thumb-img) {
+  background: #1a2030;
+}
+.detail-thumb img.thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 
 /* ═══ 22. ACCESSIBILITY / REDUCED MOTION ═══ */
 @media (prefers-reduced-motion: reduce) {
