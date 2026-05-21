@@ -89,20 +89,16 @@ body {
 .header-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
-.brand-mark {
-  color: var(--mint);
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.brand-name {
-  font-size: .95rem;
-  font-weight: 700;
-  letter-spacing: .4px;
-  color: var(--text);
+.brand-logo {
+  height: 38px;
+  width: auto;
+  max-width: 130px;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+  border-radius: 6px;
 }
 
 .icon-btn {
