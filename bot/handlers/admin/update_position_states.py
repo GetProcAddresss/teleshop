@@ -12,6 +12,7 @@ from bot.keyboards.inline import back, question_buttons, simple_buttons
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.misc import EnvKeys
+from bot.misc.services.notifications import notify_new_stock
 from bot.i18n import localize
 from bot.states import UpdateItemFSM
 
@@ -124,26 +125,14 @@ async def updating_item_amount(call: CallbackQuery, state):
 
     await call.message.edit_text("\n".join(text_lines), parse_mode="HTML", reply_markup=back('goods_management'))
 
-    # Optional: channel notification (if configured)
-    channel_username = _parse_channel_username()
-    if channel_username:
+    # Unified stock notification (channel + group + Open App button)
+    if added > 0:
+        item_info = await get_item_info_cached(item_name)
         try:
-            chat_id = int(EnvKeys.CHANNEL_ID) if EnvKeys.CHANNEL_ID else f"@{channel_username}"
-            await call.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    f'🎁 {localize("shop.group.new_upload")}\n'
-                    f'🏷️ {localize("shop.group.item")}: <b>{item_name}</b>\n'
-                    f'📦 {localize("shop.group.count")}: <b>{added}</b>'
-                ),
-                parse_mode='HTML'
-            )
-        except TelegramForbiddenError:
-            await call.answer(localize("errors.channel.telegram_forbidden_error", channel=channel_username))
-        except TelegramNotFound:
-            await call.answer(localize("errors.channel.telegram_not_found", channel=channel_username))
-        except TelegramBadRequest as e:
-            await call.answer(localize("errors.channel.telegram_bad_request", e=e))
+            item_price = float(item_info["price"]) if item_info else 0.0
+        except Exception:
+            item_price = 0.0
+        await notify_new_stock(call.bot, item_name, added, item_price, "")
 
     admin_info = await call.message.bot.get_chat(call.from_user.id)
     await log_audit("add_item_values", user_id=call.from_user.id, resource_type="Item", resource_id=item_name,
