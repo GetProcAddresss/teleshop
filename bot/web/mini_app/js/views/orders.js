@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { state } from "../state.js";
+import { state, getCurrency } from "../state.js";
 import { escapeHtml, fmtMoney, fmtDate, toast } from "../ui.js";
 
 export async function loadOrders() {
@@ -74,7 +74,7 @@ function orderCard(o) {
         <div class="order-name">${escapeHtml(o.item_name)}</div>
         <div class="order-date">${escapeHtml(fmtDate(o.bought_at))}</div>
       </div>
-      <span class="order-price">${fmtMoney(o.price)}</span>
+      <span class="order-price">${fmtMoney(o.price, getCurrency())}</span>
     </div>
     ${o.value ? `<div class="order-value-wrap" data-val="${escapeHtml(o.value)}">${escapeHtml(o.value)}<span class="copy-hint">Tap to copy</span></div>` : ""}
   </div>`;

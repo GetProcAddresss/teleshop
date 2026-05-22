@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { state, addToCart, cartCount, saveCart } from "../state.js";
+import { state, addToCart, cartCount, saveCart, getCurrency } from "../state.js";
 import { toast, openSheet, productSkeletons, escapeHtml, fmtMoney, emojiFor } from "../ui.js";
 import { haptic } from "../tg.js";
 import { openProductDetail } from "./detail.js";
@@ -107,7 +107,7 @@ function productCard(p) {
         <div class="card-name">${escapeHtml(p.name)}</div>
         <div class="card-desc">${escapeHtml(p.description || "")}</div>
         <div class="card-footer">
-          <span class="card-price">${fmtMoney(p.price)}</span>
+          <span class="card-price">${fmtMoney(p.price, getCurrency())}</span>
           ${out
             ? `<span class="out-badge">Out</span>`
             : `<button class="card-btn${inCart ? " is-in-cart" : ""}" data-add="${p.id}">${inCart ? "In cart" : "Add"}</button>`}

@@ -43,3 +43,7 @@ export function removeFromCart(key) {
   delete state.cart[key];
   saveCart();
 }
+
+export function getCurrency() {
+  return state.user?.currency || "USD";
+}

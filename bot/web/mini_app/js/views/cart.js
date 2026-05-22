@@ -1,4 +1,4 @@
-import { state, removeFromCart, cartTotal, cartCount, saveCart } from "../state.js";
+import { state, removeFromCart, cartTotal, cartCount, saveCart, getCurrency } from "../state.js";
 import { escapeHtml, fmtMoney, emojiFor, toast } from "../ui.js";
 import { api } from "../api.js";
 import { haptic, showMainButton, hideMainButton } from "../tg.js";
@@ -26,7 +26,7 @@ export function renderCart() {
       <div class="cart-item-icon">${emojiFor(it.product.name)}</div>
       <div class="cart-item-info">
         <div class="cart-item-name">${escapeHtml(it.product.name)}${it.qty > 1 ? ` × ${it.qty}` : ""}</div>
-        <div class="cart-item-price">${fmtMoney(it.product.price * it.qty)}</div>
+        <div class="cart-item-price">${fmtMoney(it.product.price * it.qty, getCurrency())}</div>
       </div>
       <div class="cart-item-actions">
         <button class="btn-icon-sm" data-rm="${escapeHtml(key)}" aria-label="Remove">✕</button>
@@ -40,11 +40,11 @@ export function renderCart() {
     });
   });
 
-  sub.textContent = fmtMoney(cartTotal());
+  sub.textContent = fmtMoney(cartTotal(), getCurrency());
   summary.hidden = false;
 
   showMainButton({
-    text: `Checkout • ${fmtMoney(cartTotal())}`,
+    text: `Checkout • ${fmtMoney(cartTotal(), getCurrency())}`,
     onClick: checkoutAll,
   });
 }

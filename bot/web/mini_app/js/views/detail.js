@@ -1,5 +1,5 @@
 import { openSheet, closeSheet, escapeHtml, fmtMoney, emojiFor, toast } from "../ui.js";
-import { addToCart, state } from "../state.js";
+import { addToCart, state, getCurrency } from "../state.js";
 import { api } from "../api.js";
 import { haptic, showMainButton, hideMainButton } from "../tg.js";
 
@@ -19,7 +19,7 @@ export function openProductDetail(p) {
     }</div>
     <h2 class="detail-name">${escapeHtml(p.name)}</h2>
     <div class="detail-meta">
-      <span class="detail-price">${fmtMoney(p.price)}</span>
+      <span class="detail-price">${fmtMoney(p.price, getCurrency())}</span>
       ${stockTag}
     </div>
     <div class="detail-desc">${escapeHtml(p.description || "No description")}</div>
@@ -38,7 +38,7 @@ export function openProductDetail(p) {
   document.querySelector('[data-act="buy"]')?.addEventListener("click", () => purchase(p));
 
   showMainButton({
-    text: inStock ? `Buy for ${fmtMoney(p.price)}` : "Out of stock",
+    text: inStock ? `Buy for ${fmtMoney(p.price, getCurrency())}` : "Out of stock",
     onClick: () => inStock && purchase(p),
   });
 }
@@ -69,7 +69,7 @@ function showResult(p, data) {
       <div class="result-sub">Your "${escapeHtml(p.name)}" is ready</div>
       ${value ? `<div class="result-value" id="resVal" title="Tap to copy">${escapeHtml(value)}</div>
                  <div class="result-hint">Tap to copy</div>` : ""}
-      ${newBalance != null ? `<div class="result-balance">New balance: <strong>${fmtMoney(newBalance)}</strong></div>` : ""}
+      ${newBalance != null ? `<div class="result-balance">New balance: <strong>${fmtMoney(newBalance, getCurrency())}</strong></div>` : ""}
       <button class="btn btn-primary btn-block" data-close>Done</button>
     </div>`;
   openSheet(html, { onClose: hideMainButton });

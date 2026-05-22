@@ -62,7 +62,7 @@ export function escapeHtml(s) {
   }[c]));
 }
 
-export function fmtMoney(value, currency = "RUB") {
+export function fmtMoney(value, currency = "USD") {
   const n = Number(value || 0);
   try {
     return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(n);

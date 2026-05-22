@@ -32,7 +32,7 @@ export function bindProfile() {
 function openTopup() {
   if (!state.user) { toast("Open inside Telegram to top up", "error"); return; }
   haptic("light");
-  const cur = state.user.currency || "RUB";
+  const cur = state.user.currency || "USD";
   const presets = [100, 500, 1000, 2000, 5000, 10000];
   const html = `
     <div class="topup-title">Top up balance</div>
