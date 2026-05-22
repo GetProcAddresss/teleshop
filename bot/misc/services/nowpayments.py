@@ -130,12 +130,38 @@ class NowPaymentsAPI:
             return False
 
     async def get_minimum_payment_amount(self, currency_from: str, currency_to: str = "usdttrc20") -> float:
-        """Fetch the minimum allowed payment amount for a currency pair."""
+        """Fetch the minimum allowed payment amount for a currency pair (in pay currency units)."""
         data = await self._request("GET", "/min-amount", params={
             "currency_from": currency_from.lower(),
             "currency_to": currency_to.lower(),
         })
         return float(data.get("min_amount", 0))
+
+    async def get_estimate(self, amount: float, currency_from: str, currency_to: str) -> float:
+        """Estimate how much `currency_to` you receive for `amount` of `currency_from`."""
+        data = await self._request("GET", "/estimate", params={
+            "amount": amount,
+            "currency_from": currency_from.lower(),
+            "currency_to": currency_to.lower(),
+        })
+        return float(data.get("estimated_amount", 0))
+
+    async def get_minimum_fiat_amount(self, fiat_currency: str, pay_currency: str = "usdttrc20", safety: float = 1.05) -> float:
+        """
+        Compute the minimum required FIAT amount such that the resulting crypto
+        amount is at least the API's minimum. Adds a small safety margin for
+        rate fluctuations between request and payment creation.
+        """
+        min_crypto = await self.get_minimum_payment_amount(fiat_currency, pay_currency)
+        if min_crypto <= 0:
+            return 0.0
+        # Use a probe amount to derive the fiat-to-crypto exchange rate.
+        probe_fiat = max(10.0, min_crypto)
+        probe_crypto = await self.get_estimate(probe_fiat, fiat_currency, pay_currency)
+        if probe_crypto <= 0:
+            return min_crypto * safety  # 1:1 fallback (works for USD↔USDT)
+        rate = probe_crypto / probe_fiat  # crypto per 1 fiat
+        return (min_crypto / rate) * safety
 
     async def create_payment(
         self,

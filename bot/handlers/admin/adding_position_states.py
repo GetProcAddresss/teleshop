@@ -101,20 +101,32 @@ async def _ask_price(message: Message, state):
 async def add_item_image_photo(message: Message, state):
     """Save uploaded photo to uploads dir and proceed to price."""
     try:
+        import io
         photo = message.photo[-1]
         file = await message.bot.get_file(photo.file_id)
-        os.makedirs(_UPLOADS_DIR, exist_ok=True)
         ext = os.path.splitext(file.file_path or "")[1].lower() or ".jpg"
         if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
             ext = ".jpg"
-        fname = f"prod_{int(_time.time())}_{secrets.token_hex(6)}{ext}"
-        fpath = os.path.join(_UPLOADS_DIR, fname)
-        await message.bot.download_file(file.file_path, destination=fpath)
-        if os.path.getsize(fpath) > _MAX_PHOTO_BYTES:
-            os.remove(fpath)
+        mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                    ".png": "image/png", ".webp": "image/webp"}
+        mime = mime_map.get(ext, "image/jpeg")
+
+        buf = io.BytesIO()
+        await message.bot.download_file(file.file_path, destination=buf)
+        raw = buf.getvalue()
+        if len(raw) == 0 or len(raw) > _MAX_PHOTO_BYTES:
             await message.answer(localize('admin.goods.add.image.invalid'))
             return
-        await state.update_data(item_image_url=f"/uploads/{fname}")
+
+        # Persist to DB (survives container restarts).
+        from bot.database.main import Database
+        from bot.database.models.main import ProductImage
+        token = secrets.token_urlsafe(24).replace("-", "").replace("_", "")[:32]
+        async with Database().session() as s:
+            s.add(ProductImage(token=token, mime=mime, data=raw, size=len(raw)))
+            await s.commit()
+
+        await state.update_data(item_image_url=f"/uploads/img/{token}")
         await message.answer(localize('admin.goods.add.image.saved'))
         await _ask_price(message, state)
     except Exception:

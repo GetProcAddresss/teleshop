@@ -225,17 +225,61 @@ async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
                 webhook_base = EnvKeys.WEBHOOK_URL or f"https://{EnvKeys._railway_domain}"
                 ipn_url = f"{webhook_base}/api/nowpayments/ipn"
                 order_id = f"nowpay:{call.from_user.id}:{int(amount_dec)}"
+                pay_cur = "usdttrc20"
+
+                # Pre-check minimum amount so user gets a clear message instead of a raw API error.
+                try:
+                    min_fiat = await np.get_minimum_fiat_amount(
+                        EnvKeys.PAY_CURRENCY.lower(), pay_cur
+                    )
+                except Exception:
+                    min_fiat = 0.0
+                if min_fiat and float(amount_dec) < min_fiat:
+                    await log_audit(
+                        "nowpayments_below_min", level="WARNING",
+                        user_id=call.from_user.id, resource_type="Payment",
+                        details=f"amount={amount_dec}, min_fiat≈{min_fiat:.2f} {EnvKeys.PAY_CURRENCY}",
+                    )
+                    await call.message.edit_text(
+                        f"⚠️ <b>Amount too low for crypto payment</b>\n\n"
+                        f"NowPayments requires a minimum of approximately "
+                        f"<b>{min_fiat:.2f} {EnvKeys.PAY_CURRENCY}</b> for this currency pair.\n\n"
+                        f"Your amount: <b>{float(amount_dec):.2f} {EnvKeys.PAY_CURRENCY}</b>\n\n"
+                        f"Please start over and enter a higher amount, or choose another payment method.",
+                        parse_mode="HTML",
+                        reply_markup=back("profile"),
+                    )
+                    await state.clear()
+                    return
 
                 payment = await np.create_payment(
                     price_amount=float(amount_dec),
                     price_currency=EnvKeys.PAY_CURRENCY.lower(),
-                    pay_currency="usdttrc20",
+                    pay_currency=pay_cur,
                     order_id=order_id,
                     order_description=f"Evrest Market balance top-up {int(amount_dec)} {EnvKeys.PAY_CURRENCY}",
                     ipn_callback_url=ipn_url,
                 )
             except NowPaymentsAPIError as e:
                 await log_audit("nowpayments_error", level="ERROR", user_id=call.from_user.id, resource_type="Payment", details=f"[{e.code}] {e.message}")
+                # Special-case "less than minimal" — compute and show the fiat minimum.
+                if "minimal" in (e.message or "").lower() or "minimum" in (e.message or "").lower():
+                    try:
+                        np2 = NowPaymentsAPI()
+                        min_fiat = await np2.get_minimum_fiat_amount(
+                            EnvKeys.PAY_CURRENCY.lower(), "usdttrc20"
+                        )
+                    except Exception:
+                        min_fiat = 0.0
+                    msg = (
+                        f"⚠️ <b>Amount too low for crypto payment</b>\n\n"
+                        + (f"NowPayments requires at least <b>{min_fiat:.2f} {EnvKeys.PAY_CURRENCY}</b>.\n\n" if min_fiat else "")
+                        + f"Your amount: <b>{float(amount_dec):.2f} {EnvKeys.PAY_CURRENCY}</b>\n\n"
+                        + "Please start over and enter a higher amount."
+                    )
+                    await call.message.edit_text(msg, parse_mode="HTML", reply_markup=back("profile"))
+                    await state.clear()
+                    return
                 await call.answer(localize("payments.nowpayments.api_error", error=e.message), show_alert=True)
                 return
             except Exception as e:

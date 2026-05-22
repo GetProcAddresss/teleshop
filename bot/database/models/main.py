@@ -3,7 +3,8 @@ from typing import Any
 
 from sqlalchemy import (
     Column, Integer, String, BigInteger, ForeignKey, Text, Boolean,
-    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, func, select
+    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, LargeBinary,
+    func, select
 )
 from bot.database.main import Database
 from sqlalchemy.orm import relationship
@@ -153,6 +154,15 @@ class Goods(Database.BASE):
 
     def __str__(self):
         return self.name or f"Product #{self.id}"
+
+
+class ProductImage(Database.BASE):
+    __tablename__ = 'product_images'
+    token = Column(String(48), primary_key=True)
+    mime = Column(String(64), nullable=False)
+    data = Column(LargeBinary, nullable=False)
+    size = Column(Integer, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.datetime.utcnow())
 
 
 class ItemValues(Database.BASE):

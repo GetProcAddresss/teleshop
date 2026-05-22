@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Route, Mount
 from starlette.staticfiles import StaticFiles
-from sqlalchemy import text
+from sqlalchemy import text, select
 
 from markupsafe import Markup
 
@@ -528,8 +528,14 @@ async def nowpayments_ipn(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Internal error"}, status_code=500)
 
 
+_EXT_TO_MIME = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
+}
+
+
 async def upload_product_image(request: Request) -> JSONResponse:
-    """Admin-only image upload. Returns {url: '/uploads/<file>'}."""
+    """Admin-only image upload. Stores bytes in DB (persistent) and returns {url: '/uploads/img/<token>'}."""
     if not request.session.get("authenticated"):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
     try:
@@ -549,30 +555,54 @@ async def upload_product_image(request: Request) -> JSONResponse:
             return JSONResponse({"error": "File too large (max 2 MB)"}, status_code=413)
         if not _verify_image_bytes(raw, ext):
             return JSONResponse({"error": "Invalid image content"}, status_code=400)
-        try:
-            os.makedirs(_UPLOADS_DIR, exist_ok=True)
-        except Exception:
-            return JSONResponse({"error": "Storage unavailable"}, status_code=503)
+
         import secrets
-        # Random, non-guessable filename — admin sees only the preview, not the path.
-        fname = f"prod_{secrets.token_urlsafe(18).replace('-','').replace('_','')[:24]}{ext}"
-        dest = os.path.realpath(os.path.join(_UPLOADS_DIR, fname))
-        # Defense-in-depth: ensure resolved path is inside uploads dir
-        if not dest.startswith(os.path.realpath(_UPLOADS_DIR) + os.sep):
-            return JSONResponse({"error": "Invalid path"}, status_code=400)
-        with open(dest, "wb") as out:
-            out.write(raw)
+        from bot.database.models.main import ProductImage
+        token = secrets.token_urlsafe(24).replace("-", "").replace("_", "")[:32]
+        mime = _EXT_TO_MIME.get(ext, "application/octet-stream")
+
         try:
-            os.chmod(dest, 0o644)
-        except Exception:
-            pass
+            async with Database().session() as s:
+                s.add(ProductImage(token=token, mime=mime, data=raw, size=len(raw)))
+                await s.commit()
+        except Exception as e:
+            logger.error(f"upload_product_image db error: {e}")
+            return JSONResponse({"error": "Storage unavailable"}, status_code=503)
+
         return JSONResponse(
-            {"url": f"/uploads/{fname}", "size": len(raw)},
+            {"url": f"/uploads/img/{token}", "size": len(raw)},
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
     except Exception as e:
         logger.error(f"upload_product_image error: {e}")
         return JSONResponse({"error": "Upload failed"}, status_code=500)
+
+
+async def serve_product_image(request: Request) -> Response:
+    """Public read-only endpoint that streams a stored product image."""
+    from starlette.responses import Response as _R
+    token = (request.path_params.get("token") or "").strip()
+    if not token or len(token) > 48 or not token.isalnum():
+        return _R(status_code=404)
+    try:
+        from bot.database.models.main import ProductImage
+        async with Database().session() as s:
+            result = await s.execute(select(ProductImage).where(ProductImage.token == token))
+            img = result.scalars().first()
+        if not img:
+            return _R(status_code=404)
+        return _R(
+            content=img.data,
+            media_type=img.mime,
+            headers={
+                "Cache-Control": "public, max-age=86400, immutable",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Length": str(img.size),
+            },
+        )
+    except Exception as e:
+        logger.error(f"serve_product_image error: {e}")
+        return _R(status_code=500)
 
 
 async def health_check(request: Request) -> JSONResponse:
@@ -709,6 +739,7 @@ def create_admin_app() -> Starlette:
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
         Route("/admin/upload", upload_product_image, methods=["POST"]),
+        Route("/uploads/img/{token}", serve_product_image, methods=["GET"]),
         Route("/api/nowpayments/ipn", nowpayments_ipn, methods=["POST"]),
     ] + export_routes + get_mini_app_routes() + [
         Mount("/uploads", app=StaticFiles(directory=_UPLOADS_DIR)),
