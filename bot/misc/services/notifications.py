@@ -57,7 +57,8 @@ async def notify_new_stock(
     qty can be an int count or '∞' for infinite items.
     """
     channel_id = EnvKeys.NOTIFY_CHANNEL_ID
-    if not channel_id:
+    group_id = EnvKeys.NOTIFY_GROUP_ID
+    if not channel_id and not group_id:
         return
 
     qty_str = str(added_qty) if added_qty != 0 else "∞"
@@ -75,7 +76,12 @@ async def notify_new_stock(
         f"💰 <b>Price:</b> {price_str} {currency}",
     ]
 
-    await _send_safe(bot, channel_id, "\n".join(lines), _open_app_keyboard())
+    text = "\n".join(lines)
+    keyboard = _open_app_keyboard()
+    if channel_id:
+        await _send_safe(bot, channel_id, text, keyboard)
+    if group_id:
+        await _send_safe(bot, group_id, text, keyboard)
 
 
 async def notify_new_purchase(
