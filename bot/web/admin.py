@@ -291,6 +291,47 @@ class ItemValuesAdmin(AuditModelView, model=ItemValues):
     name_plural = "Stock Items"
     icon = "fa-solid fa-warehouse"
 
+    async def insert_model(self, request: Request, data: dict) -> Any:
+        """
+        If the same (item, value) already exists, silently return the existing
+        row instead of raising a unique-constraint error — admins re-adding
+        the same stock should be treated as a no-op success.
+        """
+        try:
+            return await super().insert_model(request, data)
+        except Exception as e:
+            msg = str(e)
+            if "uq_item_value_per_item" in msg or "UniqueViolationError" in msg or "duplicate key" in msg.lower():
+                try:
+                    item_id = data.get("item") if not hasattr(data.get("item"), "id") else data.get("item").id
+                    if hasattr(item_id, "id"):
+                        item_id = item_id.id
+                    value = data.get("value")
+                    async with Database().session() as s:
+                        result = await s.execute(
+                            select(ItemValues).where(
+                                ItemValues.item_id == int(item_id),
+                                ItemValues.value == value,
+                            )
+                        )
+                        existing = result.scalars().first()
+                    if existing is not None:
+                        return existing
+                except Exception:
+                    pass
+            raise
+
+    async def update_model(self, request: Request, pk: Any, data: dict) -> Any:
+        try:
+            return await super().update_model(request, pk, data)
+        except Exception as e:
+            msg = str(e)
+            if "uq_item_value_per_item" in msg or "UniqueViolationError" in msg or "duplicate key" in msg.lower():
+                raise ValueError(
+                    "Another stock entry with the same value already exists for this product."
+                ) from None
+            raise
+
 
 class BoughtGoodsAdmin(ModelView, model=BoughtGoods):
     column_list = [BoughtGoods.id, BoughtGoods.item_name, BoughtGoods.value,
