@@ -461,7 +461,7 @@
         .then(function(res){
           if (!res.ok) throw new Error(res.d.error || "Upload failed");
           // Only accept relative /uploads/ paths returned by our own endpoint
-          if (typeof res.d.url !== "string" || !/^\/uploads\/[A-Za-z0-9_.-]+$/.test(res.d.url)) {
+          if (typeof res.d.url !== "string" || !/^\/uploads\/(img\/)?[A-Za-z0-9_.-]+$/.test(res.d.url)) {
             throw new Error("Invalid response");
           }
           setValue(res.d.url);
