@@ -180,6 +180,10 @@ def get_payment_choice() -> InlineKeyboardMarkup:
     ]
     if EnvKeys.NOWPAYMENTS_API_KEY:
         buttons.append((localize("btn.pay.nowpayments"), "pay_nowpayments"))
+    if EnvKeys.BEP20_WALLET_ADDRESS:
+        buttons.append((localize("btn.pay.bep20"), "pay_bep20"))
+    if EnvKeys.BINANCE_UID:
+        buttons.append((localize("btn.pay.binance"), "pay_binance_uid"))
     buttons.append((localize("btn.back"), "replenish_balance"))
     return simple_buttons(buttons, per_row=1)
 

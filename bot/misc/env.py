@@ -85,6 +85,17 @@ class EnvKeys(ABC):
     NOWPAYMENTS_IPN_SECRET: Final = _get_optional("NOWPAYMENTS_IPN_SECRET", "")
     NOWPAYMENTS_PUBLIC_KEY: Final = _get_optional("NOWPAYMENTS_PUBLIC_KEY", "")
 
+    # USDT BEP20 direct deposits (no gateway, polled via BscScan)
+    BEP20_WALLET_ADDRESS: Final = _get_optional("BEP20_WALLET_ADDRESS", "")
+    BSCSCAN_API_KEY: Final = _get_optional("BSCSCAN_API_KEY", "")
+    BEP20_MIN_AMOUNT: Final = float(_get_optional("BEP20_MIN_AMOUNT", "1"))
+    BEP20_POLL_INTERVAL: Final = int(_get_optional("BEP20_POLL_INTERVAL", "45"))
+    BEP20_DEPOSIT_TTL: Final = int(_get_optional("BEP20_DEPOSIT_TTL", "3600"))
+
+    # Binance internal-UID transfer (manual admin verification)
+    BINANCE_UID: Final = _get_optional("BINANCE_UID", "")
+    BINANCE_MIN_AMOUNT: Final = float(_get_optional("BINANCE_MIN_AMOUNT", "1"))
+
     # Notification targets
     NOTIFY_GROUP_ID: Final = _get_optional("NOTIFY_GROUP_ID", "")
     NOTIFY_CHANNEL_ID: Final = _get_optional("NOTIFY_CHANNEL_ID", "")

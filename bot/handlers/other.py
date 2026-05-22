@@ -47,7 +47,9 @@ def _any_payment_method_enabled() -> bool:
     tg_stars_ok = bool(EnvKeys.STARS_PER_VALUE)
     tg_pay_ok = bool(EnvKeys.TELEGRAM_PROVIDER_TOKEN)
     nowpayments_ok = bool(EnvKeys.NOWPAYMENTS_API_KEY)
-    return cryptopay_ok or tg_stars_ok or tg_pay_ok or nowpayments_ok
+    bep20_ok = bool(EnvKeys.BEP20_WALLET_ADDRESS)
+    binance_ok = bool(EnvKeys.BINANCE_UID)
+    return cryptopay_ok or tg_stars_ok or tg_pay_ok or nowpayments_ok or bep20_ok or binance_ok
 
 
 def _parse_channel_username() -> str | None:

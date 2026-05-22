@@ -103,7 +103,7 @@ async def invalid_amount(message: Message, state: FSMContext):
 
 @router.callback_query(
     BalanceStates.waiting_payment,
-    F.data.in_(["pay_cryptopay", "pay_stars", "pay_fiat", "pay_nowpayments"])
+    F.data.in_(["pay_cryptopay", "pay_stars", "pay_fiat", "pay_nowpayments", "pay_bep20", "pay_binance_uid"])
 )
 async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
     """Create an invoice for the chosen payment method."""
@@ -114,6 +114,13 @@ async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("payments.session_expired"), show_alert=True)
         await call.message.edit_text(localize("menu.title"), reply_markup=back('back_to_menu'))
         await state.clear()
+        return
+
+    if call.data == "pay_bep20":
+        await _start_bep20_topup(call, state, Decimal(amount))
+        return
+    if call.data == "pay_binance_uid":
+        await _start_binance_topup(call, state, Decimal(amount))
         return
 
     # Map callback data to provider
@@ -651,3 +658,236 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
             localize("errors.something_wrong"),
             show_alert=True
         )
+
+
+# ============================================================================
+# USDT BEP20 direct deposit (BscScan poller credits asynchronously)
+# ============================================================================
+
+import secrets as _secrets
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+from sqlalchemy import select as _select
+
+
+async def _start_bep20_topup(call: CallbackQuery, state: FSMContext, amount: Decimal):
+    """Generate fingerprint amount + show wallet to user."""
+    if not EnvKeys.BEP20_WALLET_ADDRESS:
+        await call.answer(localize("payments.not_configured"), show_alert=True)
+        return
+    if float(amount) < float(EnvKeys.BEP20_MIN_AMOUNT):
+        await call.message.edit_text(
+            f"⚠️ <b>Amount too low for BEP20</b>\n\n"
+            f"Minimum: <b>{EnvKeys.BEP20_MIN_AMOUNT} USDT</b>\n"
+            f"Your amount: <b>{float(amount):.2f}</b>\n\n"
+            f"Please start over and enter a higher amount.",
+            parse_mode="HTML",
+            reply_markup=back("profile"),
+        )
+        await state.clear()
+        return
+
+    # Build a unique fingerprint amount with 4-decimal randomness (1-9999 cents-of-cents).
+    # Different per call so two users can deposit the same base without collision.
+    fingerprint_minor = _secrets.randbelow(8999) + 1000  # 1000..9999 → .1000..9999 of a cent
+    expected = (amount.quantize(Decimal("1.")) + Decimal(fingerprint_minor) / Decimal(10000)).quantize(Decimal("0.0001"))
+    nonce = _secrets.token_urlsafe(4)
+    ext_id = f"bep20:{expected}:{nonce}"
+
+    # Save as pending Payment
+    from bot.database.models.main import Payments
+    from bot.database import Database
+    async with Database().session() as s:
+        s.add(Payments(
+            provider="bep20",
+            external_id=ext_id,
+            user_id=call.from_user.id,
+            amount=expected.quantize(Decimal("0.01")),
+            currency=EnvKeys.PAY_CURRENCY,
+            status="pending",
+        ))
+
+    ttl_min = max(1, int(EnvKeys.BEP20_DEPOSIT_TTL) // 60)
+    text = (
+        "🏦 <b>USDT BEP20 deposit</b>\n\n"
+        f"Send <b>exactly</b> <code>{expected}</code> USDT to:\n"
+        f"<code>{EnvKeys.BEP20_WALLET_ADDRESS}</code>\n\n"
+        f"⚠️ <b>Network:</b> BSC (BEP20) only — other networks will be lost.\n"
+        f"⏱ Expires in <b>{ttl_min} min</b>.\n\n"
+        f"The exact amount is what identifies your deposit — please send the "
+        f"value above precisely. Balance will be credited automatically after "
+        f"1–2 confirmations."
+    )
+    from bot.keyboards.inline import simple_buttons
+    kb = simple_buttons([
+        (localize("btn.check_bep20"), "check_bep20_change"),
+        (localize("btn.back"), "profile"),
+    ], per_row=1)
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await state.clear()
+
+
+@router.callback_query(F.data == "check_bep20_change")
+async def check_bep20_change_handler(call: CallbackQuery, state: FSMContext):
+    """Show user's BEP20 deposits in the last 24h."""
+    if not EnvKeys.BEP20_WALLET_ADDRESS:
+        await call.answer(localize("payments.not_configured"), show_alert=True)
+        return
+    from bot.database.models.main import Payments
+    from bot.database import Database
+    cutoff = _dt.now(_tz.utc) - _td(hours=24)
+    async with Database().session() as s:
+        result = await s.execute(
+            _select(Payments).where(
+                Payments.provider == "bep20",
+                Payments.user_id == call.from_user.id,
+                Payments.status == "succeeded",
+                Payments.updated_at >= cutoff,
+            ).order_by(Payments.updated_at.desc())
+        )
+        rows = list(result.scalars())
+    if not rows:
+        text = (
+            "📊 <b>BEP20 deposit change (last 24h)</b>\n\n"
+            "Deposits: 0\n"
+            "Total credited: 0 USDT\n"
+            "Latest credited deposit: N/A"
+        )
+    else:
+        total = sum((float(r.amount) for r in rows), 0.0)
+        latest = rows[0]
+        text = (
+            "📊 <b>BEP20 deposit change (last 24h)</b>\n\n"
+            f"Deposits: <b>{len(rows)}</b>\n"
+            f"Total credited: <b>{total:.2f} USDT</b>\n"
+            f"Latest: <b>{float(latest.amount):.2f} USDT</b> at "
+            f"<i>{latest.updated_at.strftime('%Y-%m-%d %H:%M UTC')}</i>\n"
+            f"TX: <code>{latest.external_id}</code>"
+        )
+    await call.answer()
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=back("profile"))
+
+
+# ============================================================================
+# Binance UID transfer (manual admin verification)
+# ============================================================================
+
+
+async def _start_binance_topup(call: CallbackQuery, state: FSMContext, amount: Decimal):
+    """Show Binance UID + prompt user for order ID."""
+    if not EnvKeys.BINANCE_UID:
+        await call.answer(localize("payments.not_configured"), show_alert=True)
+        return
+    if float(amount) < float(EnvKeys.BINANCE_MIN_AMOUNT):
+        await call.message.edit_text(
+            f"⚠️ <b>Amount too low for Binance transfer</b>\n\n"
+            f"Minimum: <b>{EnvKeys.BINANCE_MIN_AMOUNT} USDT</b>\n"
+            f"Your amount: <b>{float(amount):.2f}</b>",
+            parse_mode="HTML",
+            reply_markup=back("profile"),
+        )
+        await state.clear()
+        return
+
+    await state.update_data(binance_amount=str(amount.quantize(Decimal("0.01"))))
+    text = (
+        "🏦 <b>Binance internal transfer</b>\n\n"
+        f"<b>Binance ID (tap to copy):</b> <code>{EnvKeys.BINANCE_UID}</code>\n"
+        f"<b>Amount to transfer:</b> {float(amount):.2f} USDT\n\n"
+        f"⚠️ Use <b>Binance ID transfer</b> (Send → Pay ID), not Binance Pay.\n"
+        f"Network fee: free, settlement: instant.\n\n"
+        f"After sending, paste the <b>Order ID</b> (or transaction reference) "
+        f"below for verification."
+    )
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=back("profile"))
+    await state.set_state(BalanceStates.waiting_binance_order_id)
+
+
+@router.message(BalanceStates.waiting_binance_order_id, F.text)
+async def binance_order_id_handler(message: Message, state: FSMContext):
+    """Collect order ID and create pending payment + notify admin."""
+    order_id = (message.text or "").strip()
+    if len(order_id) < 4 or len(order_id) > 64 or not all(c.isalnum() or c in "-_" for c in order_id):
+        await message.answer(
+            "❌ <b>Invalid Order ID</b> — must be 4–64 alphanumeric characters.",
+            parse_mode="HTML",
+            reply_markup=back("profile"),
+        )
+        return
+
+    data = await state.get_data()
+    amount_str = data.get("binance_amount")
+    if not amount_str:
+        await message.answer(localize("payments.session_expired"), reply_markup=back("profile"))
+        await state.clear()
+        return
+    amount = Decimal(amount_str)
+
+    from bot.database.models.main import Payments
+    from bot.database import Database
+    from sqlalchemy.exc import IntegrityError
+    ext_id = f"binance_uid:{order_id}"
+    payment_id: int | None = None
+    async with Database().session() as s:
+        try:
+            p = Payments(
+                provider="binance_uid",
+                external_id=ext_id,
+                user_id=message.from_user.id,
+                amount=amount,
+                currency=EnvKeys.PAY_CURRENCY,
+                status="pending",
+            )
+            s.add(p)
+            await s.flush()
+            payment_id = p.id
+        except IntegrityError:
+            await s.rollback()
+            await message.answer(
+                "⚠️ This Order ID is already submitted. Please wait for admin verification "
+                "or contact support if it was rejected by mistake.",
+                parse_mode="HTML",
+                reply_markup=back("profile"),
+            )
+            await state.clear()
+            return
+
+    await log_audit(
+        "binance_uid_submitted",
+        user_id=message.from_user.id,
+        resource_type="Payment",
+        resource_id=order_id,
+        details=f"amount={amount} USDT",
+    )
+
+    # Notify admin(s)
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    kb = InlineKeyboardBuilder()
+    kb.button(text=localize("btn.binance.approve"), callback_data=f"binance_ok:{payment_id}")
+    kb.button(text=localize("btn.binance.reject"), callback_data=f"binance_no:{payment_id}")
+    kb.adjust(2)
+
+    admin_text = (
+        "💳 <b>Binance UID transfer — verification needed</b>\n\n"
+        f"👤 User: <a href='tg://user?id={message.from_user.id}'>"
+        f"{message.from_user.first_name or message.from_user.id}</a> "
+        f"(<code>{message.from_user.id}</code>)\n"
+        f"💰 Amount: <b>{amount} {EnvKeys.PAY_CURRENCY}</b>\n"
+        f"🧾 Order ID: <code>{order_id}</code>\n\n"
+        f"Please verify the transfer in your Binance app, then approve or reject."
+    )
+    target = EnvKeys.NOTIFY_GROUP_ID or str(EnvKeys.OWNER_ID)
+    try:
+        await message.bot.send_message(
+            int(target), admin_text, parse_mode="HTML", reply_markup=kb.as_markup()
+        )
+    except Exception as e:
+        logger.warning(f"Binance UID admin notify failed: {e}")
+
+    await message.answer(
+        "✅ <b>Submitted!</b>\n\n"
+        "Your transfer is now pending admin verification. You'll be notified "
+        "as soon as it's approved (usually within minutes).",
+        parse_mode="HTML",
+        reply_markup=back("profile"),
+    )
+    await state.clear()

@@ -23,6 +23,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.pay.stars": "⭐ Telegram Stars",
         "btn.pay.tg": "💸 Telegram Payments",
         "btn.pay.nowpayments": "🔗 NowPayments (Crypto)",
+        "btn.pay.bep20": "🏦 Top up USDT (BEP20)",
+        "btn.pay.binance": "🏦 Top up with Binance",
+        "btn.check_bep20": "📊 Check BEP20 change",
+        "btn.binance.approve": "✅ Approve",
+        "btn.binance.reject": "❌ Reject",
+        "btn.order_id_sent": "📨 I sent the order ID",
 
         # === Admin Buttons (user management shortcuts) ===
         "btn.admin.view_profile": "👁 Посмотреть профиль",
@@ -524,6 +530,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.pay.stars": "⭐ Telegram Stars",
         "btn.pay.tg": "💸 Telegram Payments",
         "btn.pay.nowpayments": "🔗 NowPayments (Crypto)",
+        "btn.pay.bep20": "🏦 Top up USDT (BEP20)",
+        "btn.pay.binance": "🏦 Top up with Binance",
+        "btn.check_bep20": "📊 Check BEP20 change",
+        "btn.binance.approve": "✅ Approve",
+        "btn.binance.reject": "❌ Reject",
+        "btn.order_id_sent": "📨 I sent the order ID",
 
         # === Admin Buttons (user management shortcuts) ===
         "btn.admin.view_profile": "👁 View profile",

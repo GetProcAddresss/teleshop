@@ -28,6 +28,7 @@ from bot.database.main import Database as _Database
 # Global variables for components
 recovery_manager = None
 cleanup_manager = None
+bep20_poller = None
 admin_server = None
 cache_scheduler = None
 webhook_active = False
@@ -117,6 +118,12 @@ async def __on_start_up(dp: Dispatcher, bot: Bot) -> None:
     cleanup_manager = CleanupManager()
     await cleanup_manager.start()
 
+    # Start the BEP20 deposit poller (no-op if env not set)
+    global bep20_poller
+    from bot.misc.services.bep20_poller import Bep20Poller
+    bep20_poller = Bep20Poller(bot)
+    await bep20_poller.start()
+
     # Start the admin web server
     import uvicorn
     from bot.web import create_admin_app
@@ -138,7 +145,7 @@ async def __on_start_up(dp: Dispatcher, bot: Bot) -> None:
 
 async def __on_shutdown(dp: Dispatcher, bot: Bot) -> None:
     """Initialize bot shutdown"""
-    global recovery_manager, cleanup_manager, admin_server, webhook_active
+    global recovery_manager, cleanup_manager, bep20_poller, admin_server, webhook_active
 
     logging.info("Starting shutdown...")
 
@@ -159,6 +166,10 @@ async def __on_shutdown(dp: Dispatcher, bot: Bot) -> None:
     # Cleanup Manager Stop
     if cleanup_manager:
         await cleanup_manager.stop()
+
+    # BEP20 poller stop
+    if bep20_poller:
+        await bep20_poller.stop()
 
     # Delete webhook if it was active
     if webhook_active:
