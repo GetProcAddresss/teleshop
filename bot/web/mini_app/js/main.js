@@ -1,6 +1,7 @@
 import { initTg, tg, haptic, hideMainButton, hideBackButton } from "./tg.js";
 import { applyTheme, bindThemeSegment, bindToggleButton, watchSystem } from "./theme.js";
 import { loadCart, cartCount, state, subscribe } from "./state.js";
+import { api } from "./api.js";
 import { bindSheet } from "./ui.js";
 import { initShop } from "./views/shop.js";
 import { renderCart, bindCart } from "./views/cart.js";
@@ -36,6 +37,9 @@ function init() {
   updateCartBadge();
 
   document.addEventListener("cart:change", updateCartBadge);
+
+  // Preload user (for currency) so shop renders with correct currency on first paint
+  api.user().then(r => { if (r.ok) state.user = r.data; }).catch(() => {});
 
   initShop().finally(hideSplash);
 

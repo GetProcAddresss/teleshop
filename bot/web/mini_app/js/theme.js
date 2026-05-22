@@ -42,6 +42,7 @@ export function bindThemeSegment(rootSel = '[role="radiogroup"]') {
     applyTheme(b.dataset.themeMode);
     sync();
   }));
+  document.addEventListener("theme:change", sync);
   sync();
 }
 
@@ -50,7 +51,9 @@ export function bindToggleButton(btnSel = "#themeToggleBtn") {
   if (!btn) return;
   btn.addEventListener("click", () => {
     const current = document.documentElement.getAttribute("data-theme");
-    applyTheme(current === "dark" ? "light" : "dark");
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    localStorage.setItem(KEY, next);
   });
 }
 
