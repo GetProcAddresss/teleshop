@@ -8,7 +8,7 @@ class PaymentRequest(BaseModel):
     """Validate payment request data"""
     amount: Decimal = Field(..., gt=0, le=100000)
     currency: str = Field(..., min_length=3, max_length=3)
-    provider: str = Field(..., pattern="^(telegram|stars|cryptopay|fiat)$")
+    provider: str = Field(..., pattern="^(telegram|stars|cryptopay|nowpayments|fiat)$")
 
     @field_validator('amount')
     @classmethod
