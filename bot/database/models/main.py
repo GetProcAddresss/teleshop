@@ -174,7 +174,6 @@ class ItemValues(Database.BASE):
     item = relationship("Goods", back_populates="values", lazy='raise')
 
     __table_args__ = (
-        UniqueConstraint('item_id', 'value', name='uq_item_value_per_item'),
         Index('ix_item_values_item_inf', 'item_id', 'is_infinity'),
     )
 
