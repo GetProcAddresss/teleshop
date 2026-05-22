@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 USDT_BEP20_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
 USDT_DECIMALS = 18
 MATCH_TOLERANCE = Decimal("0.0001")
-BSCSCAN_URL = "https://api.bscscan.com/api"
+BSC_CHAIN_ID = 56
+ETHERSCAN_V2_URL = "https://api.etherscan.io/v2/api"
 
 
 def parse_bep20_external_id(external_id: str) -> tuple[Decimal, str] | None:
@@ -94,6 +95,7 @@ class Bep20Poller:
     async def _fetch_recent_txs(self) -> list[dict]:
         """Fetch last ~100 USDT-BEP20 transfers involving the receiving wallet."""
         params = {
+            "chainid": str(BSC_CHAIN_ID),
             "module": "account",
             "action": "tokentx",
             "contractaddress": USDT_BEP20_CONTRACT,
@@ -105,7 +107,7 @@ class Bep20Poller:
         }
         timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as s:
-            async with s.get(BSCSCAN_URL, params=params) as resp:
+            async with s.get(ETHERSCAN_V2_URL, params=params) as resp:
                 data = await resp.json(content_type=None)
         if str(data.get("status")) != "1":
             msg = (data.get("message") or "").lower()
