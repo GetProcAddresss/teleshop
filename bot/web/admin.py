@@ -453,6 +453,81 @@ def _verify_image_bytes(raw: bytes, ext: str) -> bool:
     return True
 
 
+async def nowpayments_ipn(request: Request) -> JSONResponse:
+    """
+    NowPayments IPN (Instant Payment Notification) webhook.
+    Public endpoint — authentication is via HMAC-SHA512 signature.
+    """
+    try:
+        raw_body = await request.body()
+        sig = request.headers.get("x-nowpayments-sig", "")
+        if not sig:
+            return JSONResponse({"error": "Missing signature"}, status_code=400)
+
+        from bot.misc.services.nowpayments import NowPaymentsAPI
+        client = NowPaymentsAPI()
+        if not client.verify_ipn_signature(raw_body, sig):
+            logger.warning("NowPayments IPN: invalid signature")
+            return JSONResponse({"error": "Invalid signature"}, status_code=401)
+
+        import json as _json
+        data = _json.loads(raw_body)
+        payment_status = data.get("payment_status", "")
+        payment_id = str(data.get("payment_id", ""))
+        order_id = str(data.get("order_id", ""))
+        pay_amount = float(data.get("actually_paid", 0) or data.get("pay_amount", 0))
+        price_currency = str(data.get("price_currency", EnvKeys.PAY_CURRENCY)).upper()
+
+        if payment_status not in ("finished", "confirmed"):
+            return JSONResponse({"ok": True, "status": payment_status})
+
+        # order_id encodes "nowpay:{user_id}:{fiat_amount}"
+        try:
+            parts = order_id.split(":")
+            user_id = int(parts[1])
+            fiat_amount = float(parts[2])
+        except (IndexError, ValueError):
+            logger.error(f"NowPayments IPN: malformed order_id={order_id}")
+            return JSONResponse({"error": "Malformed order_id"}, status_code=400)
+
+        from decimal import Decimal
+        from bot.database.methods.transactions import process_payment_with_referral
+        success, msg = await process_payment_with_referral(
+            user_id=user_id,
+            amount=Decimal(str(fiat_amount)),
+            provider="nowpayments",
+            external_id=payment_id,
+            referral_percent=EnvKeys.REFERRAL_PERCENT,
+        )
+
+        if success:
+            from bot.misc.bot_holder import get_bot
+            from bot.misc.services.notifications import notify_new_deposit
+            bot = get_bot()
+            if bot:
+                try:
+                    chat = await bot.get_chat(user_id)
+                    user_name = chat.first_name or str(user_id)
+                    await bot.send_message(
+                        user_id,
+                        f"✅ <b>Deposit confirmed!</b>\n"
+                        f"💰 <b>+{fiat_amount:.2f} {price_currency}</b> added to your balance via NowPayments.",
+                        parse_mode="HTML",
+                    )
+                    await notify_new_deposit(bot, fiat_amount, "nowpayments", user_name, user_id)
+                except Exception as e:
+                    logger.warning(f"NowPayments IPN: notify failed for user {user_id}: {e}")
+
+            await log_audit("balance_replenish", user_id=user_id, resource_type="Payment",
+                            details=f"provider=nowpayments, amount={fiat_amount}, payment_id={payment_id}")
+
+        return JSONResponse({"ok": True})
+
+    except Exception as e:
+        logger.error(f"NowPayments IPN handler error: {e}")
+        return JSONResponse({"error": "Internal error"}, status_code=500)
+
+
 async def upload_product_image(request: Request) -> JSONResponse:
     """Admin-only image upload. Returns {url: '/uploads/<file>'}."""
     if not request.session.get("authenticated"):
@@ -634,6 +709,7 @@ def create_admin_app() -> Starlette:
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
         Route("/admin/upload", upload_product_image, methods=["POST"]),
+        Route("/api/nowpayments/ipn", nowpayments_ipn, methods=["POST"]),
     ] + export_routes + get_mini_app_routes() + [
         Mount("/uploads", app=StaticFiles(directory=_UPLOADS_DIR)),
         Mount("/mini", app=StaticFiles(directory=_mini_app_dir, html=True)),

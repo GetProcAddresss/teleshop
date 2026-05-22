@@ -172,15 +172,16 @@ def get_payment_choice() -> InlineKeyboardMarkup:
     """
     Select a payment method.
     """
-    return simple_buttons(
-        [
-            (localize("btn.pay.crypto"), "pay_cryptopay"),
-            (localize("btn.pay.stars"), "pay_stars"),
-            (localize("btn.pay.tg"), "pay_fiat"),
-            (localize("btn.back"), "replenish_balance"),
-        ],
-        per_row=1,
-    )
+    from bot.misc import EnvKeys
+    buttons = [
+        (localize("btn.pay.crypto"), "pay_cryptopay"),
+        (localize("btn.pay.stars"), "pay_stars"),
+        (localize("btn.pay.tg"), "pay_fiat"),
+    ]
+    if EnvKeys.NOWPAYMENTS_API_KEY:
+        buttons.append((localize("btn.pay.nowpayments"), "pay_nowpayments"))
+    buttons.append((localize("btn.back"), "replenish_balance"))
+    return simple_buttons(buttons, per_row=1)
 
 
 def question_buttons(question: str, back_data: str) -> InlineKeyboardMarkup:

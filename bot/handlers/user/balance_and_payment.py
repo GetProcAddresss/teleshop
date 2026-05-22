@@ -15,7 +15,8 @@ from bot.misc import EnvKeys, ItemPurchaseRequest, validate_telegram_id, validat
     sanitize_html
 from bot.handlers.other import _any_payment_method_enabled, is_safe_item_name
 from bot.misc.metrics import get_metrics
-from bot.misc.services import CryptoPayAPI, CryptoPayAPIError, send_stars_invoice, send_fiat_invoice
+from bot.misc.services import CryptoPayAPI, CryptoPayAPIError, send_stars_invoice, send_fiat_invoice, NowPaymentsAPI, NowPaymentsAPIError
+from bot.misc.services.notifications import notify_new_deposit, notify_new_purchase
 from bot.misc.services.payment import _minor_units_for
 from bot.filters import ValidAmountFilter
 from bot.i18n import localize
@@ -102,7 +103,7 @@ async def invalid_amount(message: Message, state: FSMContext):
 
 @router.callback_query(
     BalanceStates.waiting_payment,
-    F.data.in_(["pay_cryptopay", "pay_stars", "pay_fiat"])
+    F.data.in_(["pay_cryptopay", "pay_stars", "pay_fiat", "pay_nowpayments"])
 )
 async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
     """Create an invoice for the chosen payment method."""
@@ -119,7 +120,8 @@ async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
     provider_map = {
         "pay_cryptopay": "cryptopay",
         "pay_stars": "stars",
-        "pay_fiat": "fiat"
+        "pay_fiat": "fiat",
+        "pay_nowpayments": "nowpayments",
     }
     provider = provider_map.get(call.data)
 
@@ -213,6 +215,62 @@ async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
                 return
             await state.clear()
 
+        elif call.data == "pay_nowpayments":
+            if not EnvKeys.NOWPAYMENTS_API_KEY:
+                await call.answer(localize("payments.not_configured"), show_alert=True)
+                return
+
+            try:
+                np = NowPaymentsAPI()
+                webhook_base = EnvKeys.WEBHOOK_URL or f"https://{EnvKeys._railway_domain}"
+                ipn_url = f"{webhook_base}/api/nowpayments/ipn"
+                order_id = f"nowpay:{call.from_user.id}:{int(amount_dec)}"
+
+                payment = await np.create_payment(
+                    price_amount=float(amount_dec),
+                    price_currency=EnvKeys.PAY_CURRENCY.lower(),
+                    pay_currency="usdttrc20",
+                    order_id=order_id,
+                    order_description=f"Evrest Market balance top-up {int(amount_dec)} {EnvKeys.PAY_CURRENCY}",
+                    ipn_callback_url=ipn_url,
+                )
+            except NowPaymentsAPIError as e:
+                await log_audit("nowpayments_error", level="ERROR", user_id=call.from_user.id, resource_type="Payment", details=f"[{e.code}] {e.message}")
+                await call.answer(localize("payments.nowpayments.api_error", error=e.message), show_alert=True)
+                return
+            except Exception as e:
+                await log_audit("nowpayments_invoice_fail", level="ERROR", user_id=call.from_user.id, resource_type="Payment", details=str(e))
+                await call.answer(localize("payments.nowpayments.create_fail", error=str(e)), show_alert=True)
+                return
+
+            payment_id = str(payment.get("payment_id", ""))
+            pay_address = payment.get("pay_address", "")
+            pay_amount = payment.get("pay_amount", "")
+            pay_currency = str(payment.get("pay_currency", "USDT")).upper()
+
+            from bot.database.methods.transactions import create_pending_payment
+            await create_pending_payment(
+                provider="nowpayments",
+                external_id=payment_id,
+                user_id=call.from_user.id,
+                amount=int(amount_dec),
+                currency=EnvKeys.PAY_CURRENCY,
+            )
+
+            await state.update_data(payment_id=payment_id, payment_type="nowpayments")
+
+            await call.message.edit_text(
+                localize("payments.nowpayments.invoice",
+                         amount=int(amount_dec),
+                         currency=EnvKeys.PAY_CURRENCY,
+                         pay_amount=pay_amount,
+                         pay_currency=pay_currency,
+                         pay_address=pay_address),
+                parse_mode="HTML",
+                reply_markup=back("profile"),
+            )
+            await state.clear()
+
     except Exception as e:
         logger.error(f"Payment processing error: {e}")
         await state.clear()
@@ -277,6 +335,9 @@ async def checking_payment(call: CallbackQuery, state: FSMContext):
 
             # Send a notification to the referrer
             await _notify_referrer_bonus(call.bot, user_id, balance_amount, call.from_user.first_name, call.from_user.id)
+
+            # Group notification
+            await notify_new_deposit(call.bot, float(balance_amount), "cryptopay", call.from_user.first_name or str(user_id), user_id)
 
             await call.message.edit_text(
                 localize("payments.topped_simple",
@@ -385,6 +446,9 @@ async def successful_payment_handler(message: Message):
     # Sending notification to referrer
     await _notify_referrer_bonus(message.bot, user_id, amount, message.from_user.first_name, message.from_user.id)
 
+    # Group notification
+    await notify_new_deposit(message.bot, float(amount), provider, message.from_user.first_name or str(user_id), user_id)
+
     metrics = get_metrics()
     if metrics:
         metrics.track_event("payment", user_id, {"amount": amount, "provider": provider})
@@ -489,6 +553,15 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
                 "price": purchase_data['price']
             })
             metrics.track_conversion("purchase_funnel", "purchase", call.from_user.id)
+
+        # Group notification
+        await notify_new_purchase(
+            call.bot,
+            purchase_data['item_name'],
+            float(purchase_data['price']),
+            call.from_user.first_name or str(call.from_user.id),
+            call.from_user.id,
+        )
 
         safe_value = sanitize_html(purchase_data['value'])
         username = call.from_user.username or call.from_user.first_name

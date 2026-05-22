@@ -298,8 +298,16 @@ async def api_buy(request: Request) -> JSONResponse:
     try:
         telegram_id = int(user.get("id", 0))
         from bot.database.methods.transactions import buy_item_transaction
+        from bot.misc.services.notifications import notify_new_purchase
         success, reason, data = await buy_item_transaction(telegram_id, item_name)
         if success:
+            bot = get_bot()
+            if bot:
+                buyer_name = user.get("first_name") or str(telegram_id)
+                try:
+                    await notify_new_purchase(bot, data["item_name"], float(data["price"]), buyer_name, telegram_id)
+                except Exception:
+                    pass
             return JSONResponse({"ok": True, "data": data}, headers=_JSON_HEADERS_NONE)
         error_map = {
             "insufficient_funds": ("Insufficient balance", 402),
@@ -315,6 +323,76 @@ async def api_buy(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Internal error"}, status_code=500, headers=_JSON_HEADERS_NONE)
 
 
+_nowpayments_limiter = _RateLimiter(limit=4, window=60.0)
+
+
+async def api_topup_nowpayments(request: Request) -> JSONResponse:
+    """Create a NowPayments payment for balance top-up from the mini app."""
+    user = _auth(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401, headers=_JSON_HEADERS_NONE)
+
+    if not _nowpayments_limiter.allow(_client_key(request, user)):
+        return JSONResponse({"error": "Too many requests. Wait a moment."}, status_code=429, headers=_JSON_HEADERS_NONE)
+
+    if not EnvKeys.NOWPAYMENTS_API_KEY:
+        return JSONResponse({"error": "NowPayments not configured"}, status_code=503, headers=_JSON_HEADERS_NONE)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400, headers=_JSON_HEADERS_NONE)
+
+    try:
+        amount = float(body.get("amount", 0))
+        pay_currency = str(body.get("currency", "usdttrc20")).lower()
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "Invalid amount"}, status_code=400, headers=_JSON_HEADERS_NONE)
+
+    if amount < float(EnvKeys.MIN_AMOUNT) or amount > float(EnvKeys.MAX_AMOUNT):
+        return JSONResponse(
+            {"error": f"Amount must be between {EnvKeys.MIN_AMOUNT} and {EnvKeys.MAX_AMOUNT}"},
+            status_code=400, headers=_JSON_HEADERS_NONE
+        )
+
+    telegram_id = int(user.get("id", 0))
+
+    try:
+        from bot.misc.services.nowpayments import NowPaymentsAPI, NowPaymentsAPIError
+        np = NowPaymentsAPI()
+        webhook_base = EnvKeys.WEBHOOK_URL or f"https://{EnvKeys._railway_domain}"
+        payment = await np.create_payment(
+            price_amount=amount,
+            price_currency=EnvKeys.PAY_CURRENCY.lower(),
+            pay_currency=pay_currency,
+            order_id=f"nowpay:{telegram_id}:{int(amount)}",
+            order_description=f"Evrest Market top-up {int(amount)} {EnvKeys.PAY_CURRENCY}",
+            ipn_callback_url=f"{webhook_base}/api/nowpayments/ipn",
+        )
+    except Exception as e:
+        logger.error(f"api_topup_nowpayments error: {e}")
+        return JSONResponse({"error": "Failed to create payment"}, status_code=500, headers=_JSON_HEADERS_NONE)
+
+    from bot.database.methods.transactions import create_pending_payment
+    await create_pending_payment(
+        provider="nowpayments",
+        external_id=str(payment.get("payment_id", "")),
+        user_id=telegram_id,
+        amount=int(amount),
+        currency=EnvKeys.PAY_CURRENCY,
+    )
+
+    return JSONResponse({
+        "ok": True,
+        "payment_id": payment.get("payment_id"),
+        "pay_address": payment.get("pay_address"),
+        "pay_amount": payment.get("pay_amount"),
+        "pay_currency": str(payment.get("pay_currency", "")).upper(),
+        "network": payment.get("network", ""),
+        "expiration_estimate_date": payment.get("expiration_estimate_date", ""),
+    }, headers=_JSON_HEADERS_NONE)
+
+
 def get_mini_app_routes() -> list:
     return [
         Route("/mini/api/health", api_health, methods=["GET"]),
@@ -323,5 +401,6 @@ def get_mini_app_routes() -> list:
         Route("/mini/api/user", api_user, methods=["GET"]),
         Route("/mini/api/orders", api_orders, methods=["GET"]),
         Route("/mini/api/topup", api_topup, methods=["POST"]),
+        Route("/mini/api/topup/nowpayments", api_topup_nowpayments, methods=["POST"]),
         Route("/mini/api/buy", api_buy, methods=["POST"]),
     ]

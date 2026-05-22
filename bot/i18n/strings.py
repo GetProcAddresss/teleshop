@@ -22,6 +22,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.pay.crypto": "💎 CryptoPay",
         "btn.pay.stars": "⭐ Telegram Stars",
         "btn.pay.tg": "💸 Telegram Payments",
+        "btn.pay.nowpayments": "🔗 NowPayments (Crypto)",
 
         # === Admin Buttons (user management shortcuts) ===
         "btn.admin.view_profile": "👁 Посмотреть профиль",
@@ -315,6 +316,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "payments.crypto.check_fail": "❌ Ошибка проверки платежа: {error}",
         "payments.stars.create_fail": "❌ Не удалось выставить счёт в Stars: {error}",
         "payments.fiat.create_fail": "❌ Не удалось выставить счёт: {error}",
+        "payments.nowpayments.api_error": "❌ Ошибка NowPayments API: {error}",
+        "payments.nowpayments.create_fail": "❌ Ошибка создания платежа NowPayments: {error}",
+        "payments.nowpayments.invoice": (
+            "🔗 <b>Оплата через NowPayments</b>\n\n"
+            "💰 Сумма к зачислению: <b>{amount} {currency}</b>\n\n"
+            "📤 Отправьте точно:\n"
+            "<code>{pay_amount}</code> <b>{pay_currency}</b>\n\n"
+            "📬 На адрес:\n"
+            "<code>{pay_address}</code>\n\n"
+            "⚠️ После оплаты баланс пополнится автоматически. Не закрывайте транзакцию."
+        ),
         "payments.no_active_invoice": "❌ Активных счетов не найдено. Начните пополнение заново.",
         "payments.invoice_not_found": "❌ Счёт не найден. Начните заново.",
         "payments.not_paid_yet": "⌛️ Платёж ещё не оплачен.",
@@ -511,6 +523,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.pay.crypto": "💎 CryptoPay",
         "btn.pay.stars": "⭐ Telegram Stars",
         "btn.pay.tg": "💸 Telegram Payments",
+        "btn.pay.nowpayments": "🔗 NowPayments (Crypto)",
 
         # === Admin Buttons (user management shortcuts) ===
         "btn.admin.view_profile": "👁 View profile",
@@ -804,6 +817,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "payments.crypto.check_fail": "❌ Payment check failed: {error}",
         "payments.stars.create_fail": "❌ Failed to issue Stars invoice: {error}",
         "payments.fiat.create_fail": "❌ Failed to issue invoice: {error}",
+        "payments.nowpayments.api_error": "❌ NowPayments API error: {error}",
+        "payments.nowpayments.create_fail": "❌ Failed to create NowPayments payment: {error}",
+        "payments.nowpayments.invoice": (
+            "🔗 <b>Pay via NowPayments</b>\n\n"
+            "💰 Amount to credit: <b>{amount} {currency}</b>\n\n"
+            "📤 Send exactly:\n"
+            "<code>{pay_amount}</code> <b>{pay_currency}</b>\n\n"
+            "📬 To address:\n"
+            "<code>{pay_address}</code>\n\n"
+            "⚠️ Your balance will be credited automatically after payment. Do not close the transaction."
+        ),
         "payments.no_active_invoice": "❌ No active invoices found. Start top-up again.",
         "payments.invoice_not_found": "❌ Invoice not found. Please start again.",
         "payments.not_paid_yet": "⌛️ Payment is not completed yet.",

@@ -17,6 +17,7 @@ from bot.keyboards.inline import back, question_buttons, simple_buttons
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.misc import EnvKeys
+from bot.misc.services.notifications import notify_new_stock
 from bot.i18n import localize
 from bot.states import AddItemFSM
 
@@ -266,26 +267,11 @@ async def finish_adding_items_callback_handler(call: CallbackQuery, state):
 
     await call.message.edit_text("\n".join(text_lines), parse_mode="HTML", reply_markup=back("goods_management"))
 
-    # Optionally notify a channel
-    channel_username = _parse_channel_username()
-    if channel_username:
-        try:
-            chat_id = int(EnvKeys.CHANNEL_ID) if EnvKeys.CHANNEL_ID else f"@{channel_username}"
-            await call.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    f"🎁 {localize('shop.group.new_upload')}\n"
-                    f"🏷️ {localize('shop.group.item')}: <b>{item_name}</b>\n"
-                    f"📦 {localize('shop.group.count')}: <b>{added}</b>"
-                ),
-                parse_mode='HTML'
-            )
-        except TelegramForbiddenError:
-            await call.answer(localize("errors.channel.telegram_forbidden_error", channel=channel_username))
-        except TelegramNotFound:
-            await call.answer(localize("errors.channel.telegram_not_found", channel=channel_username))
-        except TelegramBadRequest as e:
-            await call.answer(localize("errors.channel.telegram_bad_request", e=e))
+    item_info = await get_item_info_cached(item_name)
+    item_price = float(item_info.price) if item_info else float(item_price or 0)
+
+    # Notify channel via notifications service (includes Open App button)
+    await notify_new_stock(call.bot, item_name, added, item_price, category_name or "")
 
     admin_info = await call.message.bot.get_chat(call.from_user.id)
     await log_audit("create_item", user_id=call.from_user.id, resource_type="Item", resource_id=item_name, details=f"admin={admin_info.first_name}")
@@ -315,26 +301,10 @@ async def finish_adding_item_callback_handler(message: Message, state):
     # 2) Add 1 “infinite” value
     await add_values_to_item(item_name, single_value, True)
 
-    # 3) Optionally notify a channel
-    channel_username = _parse_channel_username()
-    if channel_username:
-        try:
-            chat_id = int(EnvKeys.CHANNEL_ID) if EnvKeys.CHANNEL_ID else f"@{channel_username}"
-            await message.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    f"🎁 {localize('shop.group.new_upload')}\n"
-                    f"🏷️ {localize('shop.group.item')}: <b>{item_name}</b>\n"
-                    f"📦 {localize('shop.group.count')}: <b>∞</b>"
-                ),
-                parse_mode='HTML'
-            )
-        except TelegramForbiddenError:
-            await message.answer(localize("errors.channel.telegram_forbidden_error", channel=channel_username))
-        except TelegramNotFound:
-            await message.answer(localize("errors.channel.telegram_not_found", channel=channel_username))
-        except TelegramBadRequest as e:
-            await message.answer(localize("errors.channel.telegram_bad_request", e=e))
+    # 3) Notify channel via notifications service (includes Open App button)
+    inf_item_info = await get_item_info_cached(item_name)
+    inf_item_price = float(inf_item_info.price) if inf_item_info else float(item_price or 0)
+    await notify_new_stock(message.bot, item_name, "∞", inf_item_price, category_name or "")
 
     await message.answer(localize('admin.goods.add.single.created'), reply_markup=back('goods_management'))
     admin_info = await message.bot.get_chat(message.from_user.id)

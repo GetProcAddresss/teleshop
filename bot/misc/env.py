@@ -80,6 +80,16 @@ class EnvKeys(ABC):
     WEBHOOK_PATH: Final = _get_optional("WEBHOOK_PATH", "/webhook")
     WEBHOOK_SECRET: Final = _get_optional("WEBHOOK_SECRET", "")
 
+    # NowPayments crypto gateway
+    NOWPAYMENTS_API_KEY: Final = _get_optional("NOWPAYMENTS_API_KEY", "")
+    NOWPAYMENTS_IPN_SECRET: Final = _get_optional("NOWPAYMENTS_IPN_SECRET", "")
+    NOWPAYMENTS_PUBLIC_KEY: Final = _get_optional("NOWPAYMENTS_PUBLIC_KEY", "")
+
+    # Notification targets
+    NOTIFY_GROUP_ID: Final = _get_optional("NOTIFY_GROUP_ID", "")
+    NOTIFY_CHANNEL_ID: Final = _get_optional("NOTIFY_CHANNEL_ID", "")
+    MINI_APP_URL: Final = _get_optional("MINI_APP_URL", "")
+
     # Cleanup
     AUDIT_RETENTION_DAYS: Final = int(_get_optional("AUDIT_RETENTION_DAYS", "90"))
     PAYMENTS_RETENTION_DAYS: Final = int(_get_optional("PAYMENTS_RETENTION_DAYS", "90"))
