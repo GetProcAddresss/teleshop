@@ -280,10 +280,14 @@ async def finish_adding_items_callback_handler(call: CallbackQuery, state):
     await call.message.edit_text("\n".join(text_lines), parse_mode="HTML", reply_markup=back("goods_management"))
 
     item_info = await get_item_info_cached(item_name)
-    item_price = float(item_info.price) if item_info else float(item_price or 0)
+    try:
+        item_price = float(item_info["price"]) if item_info else float(item_price or 0)
+    except Exception:
+        item_price = float(item_price or 0)
 
     # Notify channel via notifications service (includes Open App button)
-    await notify_new_stock(call.bot, item_name, added, item_price, category_name or "")
+    if added > 0:
+        await notify_new_stock(call.bot, item_name, added, item_price, category_name or "")
 
     admin_info = await call.message.bot.get_chat(call.from_user.id)
     await log_audit("create_item", user_id=call.from_user.id, resource_type="Item", resource_id=item_name, details=f"admin={admin_info.first_name}")
@@ -315,7 +319,10 @@ async def finish_adding_item_callback_handler(message: Message, state):
 
     # 3) Notify channel via notifications service (includes Open App button)
     inf_item_info = await get_item_info_cached(item_name)
-    inf_item_price = float(inf_item_info.price) if inf_item_info else float(item_price or 0)
+    try:
+        inf_item_price = float(inf_item_info["price"]) if inf_item_info else float(item_price or 0)
+    except Exception:
+        inf_item_price = float(item_price or 0)
     await notify_new_stock(message.bot, item_name, "∞", inf_item_price, category_name or "")
 
     await message.answer(localize('admin.goods.add.single.created'), reply_markup=back('goods_management'))
