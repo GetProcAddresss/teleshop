@@ -332,6 +332,29 @@ class ItemValuesAdmin(AuditModelView, model=ItemValues):
                 ) from None
             raise
 
+    async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        await super().after_model_change(data, model, is_created, request)
+        if not is_created:
+            return
+        try:
+            from bot.misc.bot_holder import get_bot
+            from bot.misc.services.notifications import notify_new_stock
+            bot = get_bot()
+            if not bot:
+                return
+            item_id = getattr(model, "item_id", None)
+            if item_id is None:
+                return
+            async with Database().session() as s:
+                result = await s.execute(select(Goods).where(Goods.id == int(item_id)))
+                goods = result.scalars().first()
+            if not goods:
+                return
+            qty: int | str = "∞" if getattr(model, "is_infinity", False) else 1
+            await notify_new_stock(bot, goods.name, qty, float(goods.price), "")
+        except Exception as e:
+            logger.warning(f"ItemValuesAdmin notify_new_stock failed: {e}")
+
 
 class BoughtGoodsAdmin(ModelView, model=BoughtGoods):
     column_list = [BoughtGoods.id, BoughtGoods.item_name, BoughtGoods.value,
